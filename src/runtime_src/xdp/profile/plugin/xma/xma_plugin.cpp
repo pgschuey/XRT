@@ -20,20 +20,26 @@
 #include "xdp/profile/core/rt_profile.h"
 
 namespace xdp {
-  // XOCL XDP Plugin constructor
-  XmaPlugin::XmaPlugin()
+  // XML XDP Plugin constructor
+  XmaPlugin::XmaPlugin(xclDeviceHandle s_handle)
+    : mDeviceHandle(s_handle)
   {
   }
 
   // **********
   // Trace time
   // **********
-  double XmaPlugin::getTraceTime()
+  uint64_t XmaPlugin::getTimeNsec()
   {
     // Get trace time similar to XRT
     static auto zero = std::chrono::high_resolution_clock::now();
     auto now = std::chrono::high_resolution_clock::now();
-    auto nsec = std::chrono::duration_cast<std::chrono::nanoseconds>(now-zero).count();
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(now-zero).count();
+  }
+
+  double XmaPlugin::getTraceTime()
+  {
+    uint64_t nsec = getTimeNsec();
     return getTimestampMsec(nsec);
   }
 
@@ -154,5 +160,89 @@ namespace xdp {
           mKernelCountsMap[kernelName] += 1;
       }
     }
+  }
+
+  // ****************************************
+  // Platform Metadata required by profiler
+  // ****************************************
+
+  void XmaPlugin::getProfileKernelName(const std::string& deviceName, const std::string& cuName, std::string& kernelName)
+  {
+    //xoclp::platform::get_profile_kernel_name(mPlatformHandle, deviceName, cuName, kernelName);
+    kernelName = cuName;
+  }
+
+  void XmaPlugin::getTraceStringFromComputeUnit(const std::string& deviceName, const std::string& cuName,
+                                                 std::string& traceString)
+  {
+    auto iter = mComputeUnitKernelTraceMap.find(cuName);
+    if (iter != mComputeUnitKernelTraceMap.end()) {
+      traceString = iter->second;
+    }
+    else {
+      // CR 1003380 - Runtime does not send all CU Names so we create a key
+      std::string kernelName;
+      getProfileKernelName(deviceName, cuName, kernelName);
+      for (const auto &pair : mComputeUnitKernelTraceMap) {
+        auto fullName = pair.second;
+        auto first_index = fullName.find_first_of("|");
+        auto second_index = fullName.find('|', first_index+1);
+        auto third_index = fullName.find('|', second_index+1);
+        auto fourth_index = fullName.find("|", third_index+1);
+        auto fifth_index = fullName.find("|", fourth_index+1);
+        auto sixth_index = fullName.find_last_of("|");
+        std::string currKernelName = fullName.substr(third_index + 1, fourth_index - third_index - 1);
+        if (currKernelName == kernelName) {
+          traceString = fullName.substr(0,fifth_index + 1) + cuName + fullName.substr(sixth_index);
+          return;
+        }
+      }
+      traceString = std::string();
+    }
+  }
+
+  void XmaPlugin::setTraceStringForComputeUnit(const std::string& cuName, std::string& traceString)
+  {
+    mComputeUnitKernelTraceMap[cuName] = traceString;
+  }
+
+  size_t XmaPlugin::getDeviceTimestamp(std::string& deviceName)
+  {
+    //return xoclp::platform::get_device_timestamp(mPlatformHandle,deviceName);
+    return 0;
+  }
+
+  double XmaPlugin::getReadMaxBandwidthMBps()
+  {
+    return xclGetReadMaxBandwidthMBps(mDeviceHandle);
+  }
+
+  double XmaPlugin::getWriteMaxBandwidthMBps()
+  {
+    return xclGetWriteMaxBandwidthMBps(mDeviceHandle);
+  }
+
+  unsigned XmaPlugin::getProfileNumberSlots(xclPerfMonType type, std::string& deviceName)
+  {
+    return xclGetProfilingNumberSlots(mDeviceHandle, type);
+  }
+
+  void XmaPlugin::getProfileSlotName(xclPerfMonType type, std::string& deviceName,
+                                      unsigned slotnum, std::string& slotName)
+  {
+    char name[128];
+    xclGetProfilingSlotName(mDeviceHandle, type, slotnum, name, 128);
+    slotName = name;
+  }
+
+  unsigned XmaPlugin::getProfileSlotProperties(xclPerfMonType type, std::string& deviceName,
+                                                unsigned slotnum)
+  {
+    return xclGetProfilingSlotProperties(mDeviceHandle, type, slotnum);
+  }
+
+  void XmaPlugin::sendMessage(const std::string &msg)
+  {
+    std::cerr << "WARNING: " << msg << std::endl;
   }
 } // xdp

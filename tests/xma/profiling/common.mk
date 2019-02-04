@@ -16,7 +16,8 @@ CL_EXT := cl
 
 # Change the DSA name to point to your device
 # % make DSA=mydevice ...
-DSA := xilinx_vcu1525_dynamic_5_1
+#DSA := xilinx_vcu1525_dynamic_5_1
+DSA := xilinx_vcu1525_xdma_201830_1
 
 COMMON_DIR := host_src
 
@@ -36,7 +37,7 @@ CLFLAGS := -s --platform $(DSA)
 HAL_INC := -I$(XILINX_XRT)/include
 COMMON_INC := -I$(LEVEL)/$(COMMON_DIR)
 
-CXXFLAGS += $(HAL_INC) $(COMMON_INC)
+CXXFLAGS += $(HAL_INC) $(COMMON_INC) -lxmaxdp
 CXXFLAGS += $(MYCXXFLAGS)
 
 ROOT := $(dir $(CURDIR))
@@ -100,7 +101,7 @@ xclbin : $(CL_XCLBIN)
 exe : $(ODIR)/$(EXENAME)
 
 $(ODIR)/$(EXENAME): $(OBJS)
-	$(CXX) $(LDFLAGS) -o $@ $(OBJS) -L${XILINX_XRT}/lib -lxrt_core -lxdp -ldl -pthread -g
+	$(CXX) $(LDFLAGS) -o $@ $(OBJS) -L${XILINX_XRT}/lib -lxrt_core -lxdp -lxmaxdp -ldl -pthread -g
 
 endif
 

@@ -9,7 +9,7 @@
 #include "ert.h"
 #include "xclhal2.h"
 #include "xclbin.h"
-#include "xma_profile.h"
+#include "xma_profiler.h"
 
 #include <fstream>
 #include <list>
@@ -237,8 +237,9 @@ run(const utils::device& d,size_t jobs, size_t seconds, bool ert)
 {
   init_scheduler(d, ert);
 
-  profile_initialize(d->handle, 1, 1, "coarse", "all");
-  profile_start(d->handle);	
+  auto prof = xdp::XMAProfiler::Instance();
+  prof->profile_initialize(d->handle, 1, 1, "coarse", "all");
+  prof->profile_start(d->handle);	
 
   // Create specified number of jobs.  All jobs shared input vector 'a'
   const size_t data_size = ELEMENTS * ARRAY_SIZE;
@@ -284,8 +285,8 @@ run(const utils::device& d,size_t jobs, size_t seconds, bool ert)
     DEBUGF("job (%lu,%lu)\n",job.id,job.runs);
   }
 
-  profile_stop(d->handle);
-  profile_finalize(d->handle);	
+  prof->profile_stop(d->handle);
+  prof->profile_finalize(d->handle);	
 
   if (ert)
     std::cout << "ert: ";

@@ -45,13 +45,14 @@ file(GLOB XRT_XDP_FILES
   "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
   )
 
-  file(GLOB XRT_XDP_PROFILE_OCL_PLUGIN_FILES
+file(GLOB XRT_XDP_PROFILE_OCL_PLUGIN_FILES
   "${XRT_XDP_PROFILE_PLUGIN_DIR}/*.h"
   "${XRT_XDP_PROFILE_OCL_PLUGIN_DIR}/*.h"
   "${XRT_XDP_PROFILE_OCL_PLUGIN_DIR}/*.cpp"
   )
 
 file(GLOB XRT_XDP_PROFILE_XMA_PLUGIN_FILES
+  "${XRT_XDP_PROFILE_PLUGIN_DIR}/*.h"
   "${XRT_XDP_PROFILE_XMA_PLUGIN_DIR}/*.h"
   "${XRT_XDP_PROFILE_XMA_PLUGIN_DIR}/*.cpp"
   )
@@ -67,6 +68,7 @@ set(XRT_XDP_ALL_SRC
   )
 
 add_library(xdpobj OBJECT ${XRT_XDP_PROFILE_OCL_PLUGIN_FILES})
+add_library(xmaobj OBJECT ${XRT_XDP_PROFILE_XMA_PLUGIN_FILES})
 
 add_library(xdp SHARED ${XRT_XDP_ALL_SRC})
 add_dependencies(xdp xrt_core xilinxopencl)
@@ -74,7 +76,7 @@ target_link_libraries (xdp xrt_core xilinxopencl)
 
 install (TARGETS xdp LIBRARY DESTINATION ${XRT_INSTALL_DIR}/lib)
 
-install (FILES "${XRT_XDP_PROFILE_XMA_PLUGIN_DIR}/xma_profile.h" DESTINATION ${XRT_INSTALL_DIR}/include)
+install (FILES "${XRT_XDP_PROFILE_XMA_PLUGIN_DIR}/xma_profiler.h" DESTINATION ${XRT_INSTALL_DIR}/include)
 
 set (APPDEBUG_INSTALL_PREFIX "/opt/xilinx/xrt/share/appdebug")
 install (FILES

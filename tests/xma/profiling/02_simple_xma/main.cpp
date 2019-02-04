@@ -28,7 +28,7 @@
 #include "xsimple_hw.h"  
 #endif
 
-#include "xma_profile.h"
+#include "xma_profiler.h"
 
 static const int count = 1024;
 int foo;
@@ -273,19 +273,20 @@ while ((c = getopt_long(argc, argv, "s:k:l:d:vh", long_options, &option_index)) 
 
 
     try {
-	    xclDeviceHandle handle;
+        xclDeviceHandle handle;
     	uint64_t cu_base_addr = 0;
     	if(initXRT(bitstreamFile.c_str(), index, halLogfile.c_str(), handle, cu_index, cu_base_addr)) {
 	        return 1;
 	    }
 
-        profile_initialize(handle, 1, 1, "coarse", "all");
-        profile_start(handle);
+        auto prof = xdp::XMAProfiler::Instance();
+        prof->profile_initialize(handle, 1, 1, "coarse", "all");
+        prof->profile_start(handle);
         if (runKernel(handle, cu_base_addr, alignment, ert, verbose)) {
             return 1;
         }
-        profile_stop(handle);
-        profile_finalize(handle);
+        prof->profile_stop(handle);
+        prof->profile_finalize(handle);
         
     }
     catch (std::exception const& e)

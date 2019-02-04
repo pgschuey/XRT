@@ -14,10 +14,11 @@
  * under the License.
  */
 
-#ifndef __XDP_XOCL_PLUGIN_H
-#define __XDP_XOCL_PLUGIN_H
+#ifndef __XDP_XMA_PLUGIN_H
+#define __XDP_XMA_PLUGIN_H
 
 #include "../base_plugin.h"
+#include "xclhal2.h"
 #include <boost/format.hpp>
 #include <cstdlib>
 #include <cstdio>
@@ -34,13 +35,14 @@ namespace xdp {
     class XmaPlugin: public XDPPluginI {
 
     public:
-      XmaPlugin();
+      XmaPlugin(xclDeviceHandle s_handle);
 	  ~XmaPlugin() {};
 
     // **********
     // Trace time
     // **********
     public:
+	  uint64_t getTimeNsec();
       double getTraceTime() override;
 
     // *************************
@@ -63,6 +65,27 @@ namespace xdp {
       void getDeviceExecutionTimes(RTProfile *profile);
       void getUnusedComputeUnits(RTProfile *profile);
       void getKernelCounts(RTProfile *profile);
+
+    // ***********************************************
+    // Platform Metadata required by profiler.
+    // The plugin can choose to return empty data here.
+    // ***********************************************
+    public:
+      void getProfileKernelName(const std::string& deviceName, const std::string& cuName, std::string& kernelName) override;
+      void getTraceStringFromComputeUnit(const std::string& deviceName, const std::string& cuName,
+                                         std::string& traceString) override;
+      size_t getDeviceTimestamp(std::string& deviceName) override;
+      double getReadMaxBandwidthMBps() override;
+      double getWriteMaxBandwidthMBps() override;
+      void setTraceStringForComputeUnit(const std::string& cuName, std::string& traceString);
+      unsigned getProfileNumberSlots(xclPerfMonType type, std::string& deviceName) override;
+      void getProfileSlotName(xclPerfMonType type, std::string& deviceName,
+                              unsigned slotnum, std::string& slotName) override;
+      unsigned getProfileSlotProperties(xclPerfMonType type, std::string& deviceName, unsigned slotnum) override;
+      void sendMessage(const std::string &msg) override;
+
+    private:
+      xclDeviceHandle mDeviceHandle;
     };
 
 } // xdp

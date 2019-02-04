@@ -14,7 +14,7 @@
 // host_src includes
 #include "xclhal2.h"
 #include "xclbin.h"
-#include "xma_profile.h"
+#include "xma_profiler.h"
 
 // lowlevel common include
 
@@ -142,8 +142,9 @@ int main(int argc, char** argv)
 	if(initXRT(bitstreamFile.c_str(), index, halLogfile.c_str(), handle, cu_index, cu_base_addr))
 	    return 1;
 
-    profile_initialize(handle, 1, 1, "coarse", "all");
-    profile_start(handle);	
+    auto prof = xdp::XMAProfiler::Instance();
+    prof->profile_initialize(handle, 1, 1, "coarse", "all");
+    prof->profile_start(handle);	
 
 	unsigned boHandle2 = xclAllocBO(handle, DATA_SIZE, XCL_BO_DEVICE_RAM, 0x0);
 	char* bo2 = (char*)xclMapBO(handle, boHandle2, true);
@@ -258,8 +259,8 @@ int main(int argc, char** argv)
 	xclFreeBO(handle,boHandle1);
 	xclFreeBO(handle,boHandle2);
 	xclFreeBO(handle,execHandle);
-    profile_stop(handle);
-    profile_finalize(handle);	
+    prof->profile_stop(handle);
+    prof->profile_finalize(handle);	
     }
     catch (std::exception const& e)
     {

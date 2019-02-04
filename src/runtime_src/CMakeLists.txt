@@ -22,6 +22,11 @@ add_library(oclxdp SHARED ${OPENCL_SRC}
   )
 add_dependencies(oclxdp xilinxopencl)
 
+add_library(xmaxdp SHARED ${OPENCL_SRC}
+  $<TARGET_OBJECTS:xmaobj>
+  )
+add_dependencies(xmaxdp xilinxopencl)
+
 option(XOCL_VERBOSE "Enable xocl verbosity" OFF)
 option(XRT_VERBOSE "Enable xrt verbosity" OFF)
 
@@ -64,6 +69,11 @@ target_link_libraries(oclxdp
   xilinxopencl
  )
 
+target_link_libraries(xmaxdp
+  xdp
+  xilinxopencl
+ )
+
 target_link_libraries(xilinxopencl
   ${Boost_FILESYSTEM_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
@@ -74,6 +84,6 @@ target_link_libraries(xilinxopencl
   rt
   )
 
-install (TARGETS xilinxopencl oclxdp LIBRARY DESTINATION ${XRT_INSTALL_DIR}/lib)
+install (TARGETS xilinxopencl oclxdp xmaxdp LIBRARY DESTINATION ${XRT_INSTALL_DIR}/lib)
 
 add_subdirectory(driver)
