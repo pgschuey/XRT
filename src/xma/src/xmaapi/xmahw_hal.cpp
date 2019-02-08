@@ -24,6 +24,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <xclhal2.h>
+#include <xma_profiler.h>
 //#include <xclbin.h>
 #include "app/xmaerror.h"
 #include "lib/xmaxclbin.h"
@@ -244,8 +245,45 @@ bool hal_configure(XmaHwCfg *hwcfg, XmaSystemCfg *systemcfg, bool hw_configured)
     return true;
 }
 
+bool hal_start_profile(XmaHwCfg *hwcfg)
+{
+    xma_logmsg("INFO: Starting profiling!");
+    auto xps = xdp::XMAProfiler::Instance();
+
+    for(int dev_id = 0; dev_id < hwcfg->num_devices; dev_id++)
+    {
+        XmaHwHAL *hal = (XmaHwHAL*)hwcfg->devices[dev_id].handle;
+        xclDeviceHandle dev_handle = hal->dev_handle;
+        if (!dev_handle)
+            return false;
+
+        xps->profile_initialize(dev_handle, 1, 1, "coarse", "all");
+        xps->profile_start(dev_handle);
+    }
+    return true;
+}
+
+bool hal_stop_profile(XmaHwCfg *hwcfg)
+{
+    xma_logmsg("INFO: Stopping profiling!");
+    auto xps = xdp::XMAProfiler::Instance();
+
+    for(int dev_id = 0; dev_id < hwcfg->num_devices; dev_id++)
+    {
+        XmaHwHAL *hal = (XmaHwHAL*)hwcfg->devices[dev_id].handle;
+        xclDeviceHandle dev_handle = hal->dev_handle;
+        if (!dev_handle)
+            return false;
+
+        xps->profile_stop(dev_handle);
+        xps->profile_finalize(dev_handle);
+    }
+    return true;
+}
+
 XmaHwInterface hw_if = {
     .probe         = hal_probe,
     .is_compatible = hal_is_compatible,
     .configure     = hal_configure
 };
+
