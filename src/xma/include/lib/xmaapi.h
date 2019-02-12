@@ -38,6 +38,7 @@ typedef struct XmaSingleton
     XmaResources      shm_res_cfg;
     bool              shm_freed;
     bool              enable_profile;
+    bool              enable_trace;
 } XmaSingleton;
 
 #ifdef __cplusplus

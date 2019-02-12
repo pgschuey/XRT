@@ -114,10 +114,14 @@ int32_t xma_initialize(char *cfgfile)
     if (ret)
         goto error;
 
-    if (g_xma_singleton->systemcfg.enable_profile)
+    bool enable_profile = g_xma_singleton->systemcfg.enable_profile;
+    bool enable_trace = g_xma_singleton->systemcfg.enable_trace;
+    if (enable_profile || enable_trace)
     {
-        g_xma_singleton->enable_profile = true;
-        xma_hw_start_profile(&g_xma_singleton->hwcfg);
+        g_xma_singleton->enable_profile = enable_profile;
+        g_xma_singleton->enable_trace = enable_trace;
+        xma_hw_start_profile(&g_xma_singleton->hwcfg,
+                             &g_xma_singleton->systemcfg);
     }
 
     xma_init_sighandlers();
@@ -135,7 +139,8 @@ void xma_exit(void)
 {
     extern XmaSingleton *g_xma_singleton;
 
-    if (g_xma_singleton->systemcfg.enable_profile)
+    if (g_xma_singleton->systemcfg.enable_profile
+        || g_xma_singleton->systemcfg.enable_trace)
     {
         xma_hw_stop_profile(&g_xma_singleton->hwcfg);
     }

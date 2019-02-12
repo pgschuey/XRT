@@ -245,7 +245,7 @@ bool hal_configure(XmaHwCfg *hwcfg, XmaSystemCfg *systemcfg, bool hw_configured)
     return true;
 }
 
-bool hal_start_profile(XmaHwCfg *hwcfg)
+bool hal_start_profile(XmaHwCfg *hwcfg, XmaSystemCfg *systemcfg)
 {
     xma_logmsg("INFO: Starting profiling!");
     auto xps = xdp::XMAProfiler::Instance();
@@ -257,7 +257,8 @@ bool hal_start_profile(XmaHwCfg *hwcfg)
         if (!dev_handle)
             return false;
 
-        xps->profile_initialize(dev_handle, 1, 1, "coarse", "all");
+        xps->profile_initialize(dev_handle, systemcfg->enable_profile, systemcfg->enable_trace,
+                                systemcfg->data_transfer_trace, systemcfg->stall_trace);
         xps->profile_start(dev_handle);
     }
     return true;

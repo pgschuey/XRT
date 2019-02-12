@@ -36,9 +36,9 @@ bool xma_hw_configure(XmaHwCfg *hwcfg, XmaSystemCfg *systemcfg, bool hw_cfg_stat
     return hw_if.configure(hwcfg, systemcfg, hw_cfg_status);
 }
 
-bool xma_hw_start_profile(XmaHwCfg *hwcfg)
+bool xma_hw_start_profile(XmaHwCfg *hwcfg, XmaSystemCfg *systemcfg)
 {
-    return hw_if.start_profile(hwcfg);
+    return hw_if.start_profile(hwcfg, systemcfg);
 }
 
 bool xma_hw_stop_profile(XmaHwCfg *hwcfg)

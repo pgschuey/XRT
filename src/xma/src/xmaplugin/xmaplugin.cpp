@@ -27,7 +27,7 @@ int xmaSyncBO(xclDeviceHandle handle, unsigned int boHandle,
               xclBOSyncDirection dir, size_t size, size_t offset)
 {
     int32_t rc = 0;
-    if (g_xma_singleton->enable_profile)
+    if (g_xma_singleton->enable_profile || g_xma_singleton->enable_trace)
         rc = xclSyncBOWithProfile(handle, boHandle, dir, size, offset);
     else
         rc = xclSyncBO(handle, boHandle, dir, size, offset);

@@ -63,7 +63,7 @@ namespace xdp {
 // Initialize Profiling
 // ********************
 void
-XMAProfiler::profile_initialize(xclDeviceHandle s_handle, int use_profile, int use_trace,
+XMAProfiler::profile_initialize(xclDeviceHandle s_handle, bool use_profile, bool use_trace,
                                 const char* data_transfer_trace, const char* stall_trace)
 {
   printf("profile_initialize: s_handle=%p, use_profile=%d, use_trace=%d, data_transfer_trace=%s, stall_trace=%s\n",

@@ -42,6 +42,9 @@ static int check_systemcfg(XmaData *data);
 static int set_logfile(XmaData *data);
 static int set_loglevel(XmaData *data);
 static int set_profile(XmaData *data);
+static int set_trace(XmaData *data);
+static int set_data_trace(XmaData *data);
+static int set_stall_trace(XmaData *data);
 static int set_dsa(XmaData *data);
 static int set_pluginpath(XmaData *data);
 static int set_xclbinpath(XmaData *data);
@@ -83,6 +86,9 @@ static XmaSystemCfgSM systemcfg_sm[] = {
 { "logfile",       &set_logfile,       false },
 { "loglevel",      &set_loglevel,      false },
 { "profile",       &set_profile,       false },
+{ "trace",         &set_trace,         false },
+{ "data_trace",    &set_data_trace,    false },
+{ "stall_trace",   &set_stall_trace,   false },
 { "dsa",           &set_dsa,           true },
 { "pluginpath",    &set_pluginpath,    true },
 { "xclbinpath",    &set_xclbinpath,    true },
@@ -143,6 +149,44 @@ int set_profile(XmaData *data)
         data->systemcfg->enable_profile = true;
     else
         data->systemcfg->enable_profile = false;
+    data->state_idx++;
+
+    return XMA_SUCCESS;
+}
+
+int set_trace(XmaData *data)
+{
+    yaml_node_t *next_node;
+
+    next_node = get_next_scalar_node(data->document, &data->node_idx);
+    if (strcmp((const char*)next_node->data.scalar.value, "enable") == 0)
+        data->systemcfg->enable_trace = true;
+    else
+        data->systemcfg->enable_trace = false;
+    data->state_idx++;
+
+    return XMA_SUCCESS;
+}
+
+int set_data_trace(XmaData *data)
+{
+    yaml_node_t *next_node;
+
+    next_node = get_next_scalar_node(data->document, &data->node_idx);
+    strcpy(data->systemcfg->data_transfer_trace,
+           (const char*)next_node->data.scalar.value);
+    data->state_idx++;
+
+    return XMA_SUCCESS;
+}
+
+int set_stall_trace(XmaData *data)
+{
+    yaml_node_t *next_node;
+
+    next_node = get_next_scalar_node(data->document, &data->node_idx);
+    strcpy(data->systemcfg->stall_trace,
+           (const char*)next_node->data.scalar.value);
     data->state_idx++;
 
     return XMA_SUCCESS;

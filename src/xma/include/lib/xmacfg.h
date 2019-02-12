@@ -68,6 +68,9 @@ typedef struct XmaSystemCfg
     char        logfile[PATH_MAX];
     int32_t     loglevel;
     bool        enable_profile;
+    bool        enable_trace;
+    char        data_transfer_trace[MAX_PROFILE];
+    char        stall_trace[MAX_PROFILE];
     char        pluginpath[PATH_MAX];
     char        xclbinpath[PATH_MAX];
     int32_t     num_images;

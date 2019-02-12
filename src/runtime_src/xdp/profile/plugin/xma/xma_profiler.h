@@ -67,7 +67,7 @@ namespace xdp {
      *  @param stall_transfer       Stall trace setting (options: memory|dataflow|pipe|all|off)
      *
      **/
-    void profile_initialize(xclDeviceHandle s_handle, int use_profile, int use_trace,
+    void profile_initialize(xclDeviceHandle s_handle, bool use_profile, bool use_trace,
                            const char* data_transfer_trace, const char* stall_trace);
 
     /**

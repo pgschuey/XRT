@@ -40,7 +40,6 @@ typedef struct XmaHwSession
     void    *dev_handle;
     uint64_t base_address;
     uint32_t ddr_bank;
-    bool     profile;
 } XmaHwSession;
 
 typedef void   *XmaHwHandle;
@@ -136,7 +135,7 @@ bool xma_hw_configure(XmaHwCfg *hwcfg, XmaSystemCfg *systemcfg, bool hw_cfg_stat
  *  @return          TRUE on success
  *                   FALSE on failure
  */
-bool xma_hw_start_profile(XmaHwCfg *hwcfg);
+bool xma_hw_start_profile(XmaHwCfg *hwcfg, XmaSystemCfg *systemcfg);
 
 /**
  *  @brief Stop profiling hardware
