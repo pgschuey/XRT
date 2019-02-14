@@ -40,6 +40,7 @@ namespace xdp {
   double XmaPlugin::getTraceTime()
   {
     uint64_t nsec = getTimeNsec();
+    auto nsec = std::chrono::duration_cast<std::chrono::nanoseconds>(now-zero).count();
     return getTimestampMsec(nsec);
   }
 
@@ -161,6 +162,7 @@ namespace xdp {
       }
     }
   }
+<<<<<<< HEAD
 
   // ****************************************
   // Platform Metadata required by profiler
@@ -246,3 +248,4 @@ namespace xdp {
     std::cerr << "WARNING: " << msg << std::endl;
   }
 } // xdp
+

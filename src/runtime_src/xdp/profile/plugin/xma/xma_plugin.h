@@ -42,7 +42,7 @@ namespace xdp {
     // Trace time
     // **********
     public:
-	  uint64_t getTimeNsec();
+      uint64_t getTimeNsec();
       double getTraceTime() override;
 
     // *************************
@@ -65,6 +65,7 @@ namespace xdp {
       void getDeviceExecutionTimes(RTProfile *profile);
       void getUnusedComputeUnits(RTProfile *profile);
       void getKernelCounts(RTProfile *profile);
+<<<<<<< HEAD
 
     // ***********************************************
     // Platform Metadata required by profiler.

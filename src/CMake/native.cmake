@@ -99,6 +99,10 @@ set(XMA_SOVERSION ${XRT_SOVERSION})
 add_subdirectory(xma)
 #XMA settings END
 
+# Python bindings
+set(PY_INSTALL_DIR "${XRT_INSTALL_DIR}/python")
+add_subdirectory(python)
+
 
 message("-- XRT version: ${XRT_VERSION_STRING}")
 
@@ -108,8 +112,11 @@ include (CMake/lint.cmake)
 
 set (XRT_DKMS_DRIVER_SRC_BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/runtime_src")
 include (CMake/dkms.cmake)
+include (CMake/dkms-aws.cmake)
 
 include (CMake/icd.cmake)
+
+include (CMake/changelog.cmake)
 
 include (CMake/pkgconfig.cmake)
 
@@ -117,4 +124,3 @@ include (CMake/coverity.cmake)
 
 set (CTAGS "${CMAKE_SOURCE_DIR}/runtime_src/tools/scripts/tags.sh")
 include (CMake/tags.cmake)
-

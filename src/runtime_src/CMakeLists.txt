@@ -1,4 +1,4 @@
-if( ${CMAKE_BUILD_TYPE} STREQUAL "Release")
+if(${CMAKE_BUILD_TYPE} STREQUAL "Release" AND ${XRT_NATIVE_BUILD} STREQUAL "yes")
   add_subdirectory(doc)
 endif()
 
@@ -10,6 +10,7 @@ include_directories(
 
 set(OPENCL_SRC "")
 
+
 add_library(xilinxopencl SHARED ${OPENCL_SRC}
   $<TARGET_OBJECTS:xocl>
   $<TARGET_OBJECTS:xrt>
@@ -20,7 +21,7 @@ add_library(xilinxopencl SHARED ${OPENCL_SRC}
 add_library(oclxdp SHARED ${OPENCL_SRC}
   $<TARGET_OBJECTS:xdpobj>
   )
-add_dependencies(oclxdp xilinxopencl)
+add_dependencies(oclxdp xdp xilinxopencl)
 
 add_library(xmaxdp SHARED ${OPENCL_SRC}
   $<TARGET_OBJECTS:xmaobj>

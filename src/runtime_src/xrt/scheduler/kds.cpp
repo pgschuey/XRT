@@ -105,19 +105,20 @@ launch(command_type cmd)
 {
   XRT_DEBUG(std::cout,"xrt::kds::command(",cmd->get_uid(),") [new->submitted->running]\n");
 
-  // Submit the command
   auto device = cmd->get_device();
+  auto& submitted_cmds = s_device_cmds[device]; // safe since inserted in init
+
+  // Store command so completion can be tracked.  Make sure this is
+  // done prior to exec_buf as exec_wait can otherwise be missed.
+  {
+    std::lock_guard<std::mutex> lk(s_mutex);
+    submitted_cmds.push_back(cmd);
+    s_work.notify_all();
+  }
+
+  // Submit the command
   auto exec_bo = cmd->get_exec_bo();
-  if (device->exec_buf(exec_bo))
-    throw std::runtime_error(std::string("failed to launch exec buffer '") + std::strerror(errno) + "'");
-
-  // thread safe access, since guaranteed to be inserted in init
-  auto& submitted_cmds = s_device_cmds[device];
-
-  // Store command so completion can be tracked
-  std::lock_guard<std::mutex> lk(s_mutex);
-  submitted_cmds.push_back(cmd);
-  s_work.notify_all();
+  device->exec_buf(exec_bo);
 }
 
 static void
