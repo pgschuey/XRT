@@ -36,7 +36,7 @@ namespace xdp {
 
     public:
       XmaPlugin(xclDeviceHandle s_handle);
-	  ~XmaPlugin() {};
+      ~XmaPlugin() {};
 
     // **********
     // Trace time
@@ -65,7 +65,6 @@ namespace xdp {
       void getDeviceExecutionTimes(RTProfile *profile);
       void getUnusedComputeUnits(RTProfile *profile);
       void getKernelCounts(RTProfile *profile);
-<<<<<<< HEAD
 
     // ***********************************************
     // Platform Metadata required by profiler.
