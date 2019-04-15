@@ -630,6 +630,7 @@ void register_xocl_profile_callbacks() {
 
   xocl::profile::register_cb_get_device_trace(cb_get_device_trace);
   xocl::profile::register_cb_get_device_counters(cb_get_device_counters);
+  xocl::profile::register_cb_start_kernel_profiling(cb_start_kernel_profiling);
   xocl::profile::register_cb_start_device_profiling(cb_start_device_profiling);
   xocl::profile::register_cb_reset_device_profiling(cb_reset_device_profiling);
   xocl::profile::register_cb_end_device_profiling(cb_end_device_profiling);

@@ -637,8 +637,12 @@ namespace xdp {
       // Gather unique names of monitored CUs on this device
       std::map<std::string, uint64_t> cuNameTranxMap;
       for (unsigned s=0; s < numSlots; ++s) {
+        std::cout << "slot " << s << ": name = " << mDeviceBinaryDataSlotsMap.at(key)[s]
+                  << ", prop = " << mDataSlotsPropertiesMap.at(key)[s] << std::endl;
         if (mDataSlotsPropertiesMap.at(key)[s] & XSPM_HOST_PROPERTY_MASK)
           continue;
+
+        std::cout << "adding to list" << std::endl;
 
         std::string cuPortName = mDeviceBinaryDataSlotsMap.at(key)[s];
         std::string cuName = cuPortName.substr(0, cuPortName.find_first_of("/"));

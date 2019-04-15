@@ -175,12 +175,12 @@ validOrError(cl_command_queue command_queue,
   //
   // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
   // the total number of work-items in the work-group computed as
-  // local_work_size[0] * ... local_work_size[work_dim – 1] is greater
+  // local_work_size[0] * ... local_work_size[work_dim <E2><80><93> 1] is greater
   // than the value specified by CL_KERNEL_WORK_GROUP_SIZE in table
   // 5.21.
   //
   // CL_INVALID_WORK_GROUP_SIZE if the program was compiled with
-  // –cl-uniform-work-group-size and the number of work-items
+  // <E2><80><93>cl-uniform-work-group-size and the number of work-items
   // specified by global_work_size is not evenly divisible by size of
   // work-group given by local_work_size or by the required work-
   // group size specified in the kernel source.
@@ -265,6 +265,8 @@ clEnqueueNDRangeKernel(cl_command_queue command_queue,
   validOrError(command_queue,kernel
                ,work_dim,global_work_offset,global_work_size,local_work_size
                ,num_events_in_wait_list,event_wait_list,event_parameter );
+
+  xocl::profile::start_kernel_profiling();
 
   cl_context context=xocl::xocl(kernel)->get_program()->get_context();
 

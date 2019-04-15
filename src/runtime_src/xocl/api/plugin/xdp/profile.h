@@ -76,6 +76,7 @@ using cb_init_type = std::function<void(void)>;
  */
 using cb_get_device_trace_type = std::function<void(bool forceReadTrace)>;
 using cb_get_device_counters_type = std::function<void(bool firstReadAfterProgram, bool forceReadCounters)>;
+using cb_start_kernel_profiling_type = std::function<void()>;
 using cb_start_device_profiling_type = std::function<void( size_t numComputeUnit)>;
 using cb_reset_device_profiling_type = std::function<void(void)>;
 using cb_end_device_profiling_type = std::function<void(void)>;
@@ -102,6 +103,7 @@ void register_cb_init (cb_init_type && cb);
 
 void register_cb_get_device_trace (cb_get_device_trace_type&& cb);
 void register_cb_get_device_counters (cb_get_device_counters_type&& cb);
+void register_cb_start_kernel_profiling (cb_start_kernel_profiling_type&& cb);
 void register_cb_start_device_profiling (cb_start_device_profiling_type&& cb);
 void register_cb_reset_device_profiling (cb_reset_device_profiling_type&& cb);
 void register_cb_end_device_profiling (cb_end_device_profiling_type&& cb);
@@ -194,6 +196,9 @@ get_device_trace (bool forceReadTrace);
 
 void
 get_device_counters (bool firstReadAfterProgram, bool forceReadCounters);
+
+void
+start_kernel_profiling();
 
 void
 start_device_profiling(size_t numComputeUnits);

@@ -45,6 +45,7 @@ namespace xdp {
   public:
     void turnOnProfile(xdp::RTUtil::e_profile_mode mode);
     void turnOffProfile(xdp::RTUtil::e_profile_mode mode);
+    void startKernelProfiling();
     void startDeviceProfiling(size_t numComputeUnits);
     void endDeviceProfiling();
     void getDeviceCounters(bool firstReadAfterProgram, bool forceReadCounters);
@@ -93,6 +94,7 @@ namespace xdp {
     // Flags
     int ProfileFlags;
     bool mProfileRunning = false;
+    bool mKernelProfilingCalled = false;
     bool mEndDeviceProfilingCalled = false;
     // Report writers
     std::vector<xdp::ProfileWriterI*> ProfileWriters;
@@ -110,6 +112,7 @@ namespace xdp {
    */
   void cb_get_device_trace(bool forceReadTrace);
   void cb_get_device_counters(bool firstReadAfterProgram, bool forceReadCounters);
+  void cb_start_kernel_profiling();
   void cb_start_device_profiling(size_t numComputeUnits);
   void cb_reset_device_profiling();
   void cb_end_device_profiling();

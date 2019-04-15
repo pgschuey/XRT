@@ -83,6 +83,7 @@ cb_init_type cb_init;
  */
 cb_get_device_trace_type cb_get_device_trace;
 cb_get_device_counters_type cb_get_device_counters;
+cb_start_kernel_profiling_type cb_start_kernel_profiling;
 cb_start_device_profiling_type cb_start_device_profiling;
 cb_reset_device_profiling_type cb_reset_device_profiling;
 cb_end_device_profiling_type cb_end_device_profiling;
@@ -169,6 +170,10 @@ void register_cb_get_device_trace (cb_get_device_trace_type&& cb)
 void register_cb_get_device_counters (cb_get_device_counters_type&& cb)
 {
   cb_get_device_counters = std::move(cb);
+}
+void register_cb_start_kernel_profiling (cb_start_kernel_profiling_type&& cb)
+{
+  cb_start_kernel_profiling = std::move(cb);
 }
 void register_cb_start_device_profiling (cb_start_device_profiling_type&& cb)
 {
@@ -485,16 +490,24 @@ void get_device_counters (bool firstReadAfterProgram, bool forceReadCounters)
     cb_get_device_counters(firstReadAfterProgram, forceReadCounters);
 }
 
+void start_kernel_profiling()
+{
+  if (cb_start_kernel_profiling)
+    cb_start_kernel_profiling();
+}
+
 void start_device_profiling(size_t numComputeUnits)
 {
   if (cb_start_device_profiling)
     cb_start_device_profiling(numComputeUnits);
 }
+
 void reset_device_profiling()
 {
   if (cb_reset_device_profiling)
     cb_reset_device_profiling();
 }
+
 void end_device_profiling()
 {
   if (cb_end_device_profiling)

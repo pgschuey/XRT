@@ -297,6 +297,23 @@ stop_device_trace(key k, xclPerfMonType type)
 }
 
 cl_int 
+device_clock_training(key k, xclPerfMonType type)
+{
+  auto platform = k;
+
+  cl_int ret = CL_SUCCESS;
+  if (isValidPerfMonTypeTrace(k,type)) {
+
+    // Iterate over all devices
+    for (auto device : platform->get_device_range()) {
+      if (device->is_active())
+        ret |= device::clockTraining(device, type);
+    }
+  }
+  return ret;
+}
+
+cl_int
 log_device_trace(key k, xclPerfMonType type, bool forceRead)
 {
   auto platform = k;
@@ -576,11 +593,13 @@ stopCounters(key k, xclPerfMonType type)
 }
 
 cl_int 
-logTrace(key k, xclPerfMonType type, bool forceRead)
+clockTraining(key k, xclPerfMonType type)
 {
-  auto data = get_data(k);
   auto device = k;
   auto xdevice = device->get_xrt_device();
+
+#if 0
+  auto data = get_data(k);
 
   // Do clock training if enough time has passed
   // NOTE: once we start flushing FIFOs, we stop all training (no longer needed)
@@ -592,17 +611,29 @@ logTrace(key k, xclPerfMonType type, bool forceRead)
     data->mLastTraceTrainingTime[type] = nowTime;
   }
 
-  // Read and log when trace FIFOs are filled beyond specified threshold
-  uint32_t numSamples = 0;
-  if (!forceRead) {
-    numSamples = xdevice->countTrace(type).get();
-  }
-
   // Control how often we do clock training: if there are new samples, then don't train
   if (numSamples > data->mLastTraceNumSamples[type]) {
     data->mLastTraceTrainingTime[type] = nowTime;
   }
   data->mLastTraceNumSamples[type] = numSamples;
+#else
+  // Always do clock training when requested
+  xdevice->clockTraining(type);
+#endif
+
+  return CL_SUCCESS;
+}
+
+cl_int
+logTrace(key k, xclPerfMonType type, bool forceRead)
+{
+  auto data = get_data(k);
+  auto device = k;
+  auto xdevice = device->get_xrt_device();
+
+  // Read and log when trace FIFOs are filled beyond specified threshold
+  // NOTE: Don't bother reading count if we're forcing a trace flush
+  uint32_t numSamples = (forceRead) ? 0 : xdevice->countTrace(type).get();
 
   if (forceRead || (numSamples > data->mSamplesThreshold)) {
     // Create unique name for device since system can have multiples of same device

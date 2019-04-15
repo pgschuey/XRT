@@ -105,6 +105,9 @@ cl_int
 stop_device_trace(key k, xclPerfMonType type);
 
 cl_int 
+device_clock_training(key k, xclPerfMonType type);
+
+cl_int
 log_device_trace(key k, xclPerfMonType type, bool forceRead);
 
 cl_int 
@@ -192,6 +195,9 @@ cl_int
 stopCounters(key k, xclPerfMonType type);
 
 cl_int 
+clockTraining(key k, xclPerfMonType type);
+
+cl_int
 logTrace(key k, xclPerfMonType type, bool forceRead);
 
 cl_int 

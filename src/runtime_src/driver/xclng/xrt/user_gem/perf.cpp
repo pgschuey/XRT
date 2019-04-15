@@ -755,8 +755,30 @@ namespace xocl {
       mLogStream << __func__ << ", " << std::this_thread::get_id() << ", "
           << type << ", Send clock training..." << std::endl;
     }
-    // This will be enabled later. We're snapping first event to start of cu.
-    return 1;
+
+    size_t size = 0;
+
+    // Update addresses for debug/profile IP
+    readDebugIpLayout();
+    if (!mIsDeviceProfiling)
+      return 0;
+
+    for (uint32_t i = 0; i < 2; i++) {
+      uint64_t baseAddress = getTraceFunnelAddress(XCL_PERF_MON_MEMORY);
+      uint64_t timeStamp = getHostTraceTimeNsec();
+      uint32_t regValue = static_cast <uint32_t> (timeStamp & 0xFFFF);
+
+      size += xclWrite(XCL_ADDR_SPACE_DEVICE_PERFMON, baseAddress, &regValue, 4);
+      regValue = static_cast <uint32_t> (timeStamp >> 16 & 0xFFFF);
+      size += xclWrite(XCL_ADDR_SPACE_DEVICE_PERFMON, baseAddress, &regValue, 4);
+      regValue = static_cast <uint32_t> (timeStamp >> 32 & 0xFFFF);
+      size += xclWrite(XCL_ADDR_SPACE_DEVICE_PERFMON, baseAddress, &regValue, 4);
+      regValue = static_cast <uint32_t> (timeStamp >> 48 & 0xFFFF);
+      size += xclWrite(XCL_ADDR_SPACE_DEVICE_PERFMON, baseAddress, &regValue, 4);
+      usleep(10);
+    }
+
+    return size;
   }
 
   // Start trace performance monitoring
@@ -770,6 +792,7 @@ namespace xocl {
       << ", " << type << ", " << startTrigger
       << ", Start device tracing..." << std::endl;
     }
+
     size_t size = 0;
     uint32_t regValue;
     uint64_t baseAddress;
@@ -796,23 +819,12 @@ namespace xocl {
       size += xclWrite(XCL_ADDR_SPACE_DEVICE_PERFMON, baseAddress + XSAM_TRACE_CTRL_OFFSET, &regValue, 4);
     }
 
-    xclPerfMonGetTraceCount(type);
+    //xclPerfMonGetTraceCount(type);
     size += resetFifos(type);
-    xclPerfMonGetTraceCount(type);
+    //xclPerfMonGetTraceCount(type);
 
-    for (uint32_t i = 0; i < 2; i++) {
-      baseAddress = getTraceFunnelAddress(XCL_PERF_MON_MEMORY);
-      uint64_t timeStamp = getHostTraceTimeNsec();
-      regValue = static_cast <uint32_t> (timeStamp & 0xFFFF);
-      size += xclWrite(XCL_ADDR_SPACE_DEVICE_PERFMON, baseAddress, &regValue, 4);
-      regValue = static_cast <uint32_t> (timeStamp >> 16 & 0xFFFF);
-      size += xclWrite(XCL_ADDR_SPACE_DEVICE_PERFMON, baseAddress, &regValue, 4);
-      regValue = static_cast <uint32_t> (timeStamp >> 32 & 0xFFFF); 
-      size += xclWrite(XCL_ADDR_SPACE_DEVICE_PERFMON, baseAddress, &regValue, 4);
-      regValue = static_cast <uint32_t> (timeStamp >> 48 & 0xFFFF);
-      size += xclWrite(XCL_ADDR_SPACE_DEVICE_PERFMON, baseAddress, &regValue, 4);
-      usleep(10);
-    }
+    xclPerfMonClockTraining(XCL_PERF_MON_MEMORY);
+
     return size;
   }
 
@@ -968,9 +980,12 @@ namespace xocl {
     // ******************************
     // Read & process all trace FIFOs
     // ******************************
-    static unsigned long long firstTimestamp;
-    xclTraceResults results = {};
+    int traceIndex = 0;
+    int trainingIndex = 0;
+    static uint64_t firstTimestamp = 0;
     uint64_t previousTimestamp = 0;
+    xclTraceResults results = {};
+
     for (uint32_t wordnum=0; wordnum < numSamples; wordnum++) {
       uint32_t index = wordsPerSample * wordnum;
       uint64_t temp = 0;
@@ -982,47 +997,65 @@ namespace xocl {
       if (wordnum == 0)
         firstTimestamp = temp & 0x1FFFFFFFFFFF;
 
-      // This section assumes that we write 8 timestamp packets in startTrace
-      int mod = (wordnum % 4);
-      unsigned int clockWordIndex = 7;
-      if (wordnum > clockWordIndex || mod == 0) {
-        memset(&results, 0, sizeof(xclTraceResults));
-      }
-      if (wordnum <= clockWordIndex) {
-        if (mod == 0) {
+
+      int isTraining = (temp >> 63) ? false : true;
+
+      // Catch clock training (i.e., host timestamps written to device)
+      // NOTE: the 64-bit host timestamp is sent in four trace words,
+      // each in the following format:
+      //    0:44 - device timestamp
+      //   45:60 - 16 bit word of host timestamp
+      //   61:62 - unused
+      //      63 - '0' to signify host time event
+      if (isTraining) {
+        // Extract device timestamp from first host time event
+        if (trainingIndex== 0) {
+          memset(&results, 0, sizeof(xclTraceResults));
+
           uint64_t currentTimestamp = temp & 0x1FFFFFFFFFFF;
           if (currentTimestamp >= firstTimestamp)
             results.Timestamp = currentTimestamp - firstTimestamp;
           else
             results.Timestamp = currentTimestamp + (0x1FFFFFFFFFFF - firstTimestamp);
         }
-        uint64_t partial = (((temp >> 45) & 0xFFFF) << (16 * mod));
+
+        // Extract partial host timestamp
+        uint64_t partial = (((temp >> 45) & 0xFFFF) << (16 * trainingIndex));
         results.HostTimestamp = results.HostTimestamp | partial;
         if (mLogStream.is_open()) {
           mLogStream << "Updated partial host timestamp : " << std::hex << partial << std::endl;
         }
-        if (mod == 3) {
+
+        if (trainingIndex == 3) {
           if (mLogStream.is_open()) {
             mLogStream << "  Trace sample " << std::dec << wordnum << ": ";
             mLogStream << " Timestamp : " << results.Timestamp << "   ";
             mLogStream << " Host Timestamp : " << std::hex << results.HostTimestamp << std::endl;
           }
-          traceVector.mArray[static_cast<int>(wordnum/4)] = results;
+          traceVector.mArray[traceIndex++] = results;
+          trainingIndex = 0;
+        }
+        else {
+          trainingIndex++;
         }
         continue;
       }
 
+      memset(&results, 0, sizeof(xclTraceResults));
+
       // SDSoC Packet Format
-      results.Timestamp = (temp & 0x1FFFFFFFFFFF) - firstTimestamp;
-      results.EventType = ((temp >> 45) & 0xF) ? XCL_PERF_MON_END_EVENT : 
+      results.Timestamp  = (temp & 0x1FFFFFFFFFFF) - firstTimestamp;
+      results.EventType  = ((temp >> 45) & 0xF) ? XCL_PERF_MON_END_EVENT :
           XCL_PERF_MON_START_EVENT;
-      results.TraceID = (temp >> 49) & 0xFFF;
-      results.Reserved = (temp >> 61) & 0x1;
-      results.Overflow = (temp >> 62) & 0x1;
-      results.Error = (temp >> 63) & 0x1;
-      results.EventID = XCL_PERF_MON_HW_EVENT;
-      results.EventFlags = ((temp >> 45) & 0xF) | ((temp >> 57) & 0x10) ;
-      traceVector.mArray[wordnum - clockWordIndex + 1] = results;
+      results.TraceID    = (temp >> 49) & 0xFFF;
+      results.Reserved   = (temp >> 61) & 0x1;
+      results.Overflow   = (temp >> 62) & 0x1;
+      //results.Error    = (temp >> 63) & 0x1;
+      results.Error      = 0;
+      results.EventID    = XCL_PERF_MON_HW_EVENT;
+      results.EventFlags = ((temp >> 45) & 0xF) | ((temp >> 57) & 0x10);
+      traceVector.mArray[traceIndex++] = results;
+
       if (mLogStream.is_open()) {
         mLogStream << "  Trace sample " << std::dec << std::setw(5) << wordnum << ": ";
         mLogStream << dec2bin(uint32_t(temp>>32)) << " " << dec2bin(uint32_t(temp&0xFFFFFFFF));

@@ -70,10 +70,22 @@ namespace xdp {
     pDead = true;
   }
 
+  // Start kernel profiling
+  // NOTE: Running clock training here ensures proximity to device trace events.
+  void OCLProfiler::startKernelProfiling()
+  {
+    auto platform = getclPlatformID();
+
+    // Perform clock training
+    if (deviceTraceProfilingOn())
+      xoclp::platform::device_clock_training(platform, XCL_PERF_MON_MEMORY);
+  }
+
   // Start device profiling
   void OCLProfiler::startDeviceProfiling(size_t numComputeUnits)
   {
     auto platform = getclPlatformID();
+
     // Start counters
     if (deviceCountersProfilingOn())
       xoclp::platform::start_device_counters(platform, XCL_PERF_MON_MEMORY);
@@ -394,6 +406,11 @@ namespace xdp {
   void cb_get_device_counters(bool firstReadAfterProgram, bool forceReadCounters)
   {
     OCLProfiler::Instance()->getDeviceCounters(firstReadAfterProgram, firstReadAfterProgram);
+  }
+
+  void cb_start_kernel_profiling()
+  {
+    OCLProfiler::Instance()->startKernelProfiling();
   }
 
   void cb_start_device_profiling(size_t numComputeUnits)
