@@ -122,11 +122,28 @@ namespace xdp {
                                          bool isStart)
   {
     // Log the execution of a compute unit
-    // NOTE: This is only valid for SW emulation. For HW and HW emulation, only the
-    // scheduler knows which CU gets the job. For those flows, we need to get the
-    // CU execution times from trace as read from accelerator monitors on the device. 
-    if (getFlowMode() != SW_EMU)
-      return;
+    // NOTE: This is always valid for SW emulation, and used for HW and HW emulation 
+    // flows when trace is turned off. For those flows, only the scheduler knows which 
+    // CU gets the job, so we need to parse the CU execution times from trace as read 
+    // from accelerator monitors on the device.
+    if (getFlowMode() != SW_EMU) {
+      bool openclTrace = xrt_core::config::get_opencl_trace();
+      bool dataTransferTrace = (xrt_core::config::get_data_transfer_trace() != "off")
+                               && xrt_core::config::get_timeline_trace();
+      if (openclTrace || dataTransferTrace) {
+        // Callbacks not needed as we'll parse trace for CU times
+        return;
+      }
+
+      // Warn once that we'll use callbacks, which may be inaccurate
+      static bool reportWarning = true;
+      if (reportWarning) {
+        reportWarning = false;
+        std::string msg = "Internal callbacks will be used to report CU utilization in profile summary. "
+                          "For more accurate CU runtimes and allocations, please turn on trace.";
+        xrt_core::message::send(xrt_core::message::severity_level::warning, "XRT", msg);
+      }
+    }
 
     static std::map<std::tuple<std::string, std::string, std::string>, 
                     uint64_t> storedTimestamps ;
@@ -135,11 +152,10 @@ namespace xdp {
     VPDatabase* db = openclCountersPluginInstance.getDatabase() ;
     uint64_t timestamp = xrt_core::time_ns() ;
 
-    //if (getFlowMode() == HW_EMU)
-    //{
-    //  timestamp =
-    //    openclCountersPluginInstance.convertToEstimatedTimestamp(timestamp) ;
-    //}
+    if (getFlowMode() == HW_EMU)
+    {
+      timestamp = openclCountersPluginInstance.convertToEstimatedTimestamp(timestamp);
+    }
 
     std::tuple<std::string, std::string, std::string> combinedName =
       std::make_tuple(cuName, localWorkGroup, globalWorkGroup) ;
