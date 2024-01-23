@@ -66,8 +66,7 @@ namespace xdp {
                                  const std::string metricSet, const uint8_t channel0,
                                  const uint8_t channel);
       void configEdgeEvents(const tile_type& tile, const module_type type,
-                            const std::string metricSet, const XAie_Events event,
-                            const uint8_t channel);
+                            const std::string metricSet, const XAie_Events event);
 
       uint32_t bcIdToEvent(int bcId);
     
