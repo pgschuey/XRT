@@ -395,10 +395,19 @@ namespace xdp {
   }
 
   /****************************************************************************
+   * Check if core module event
+   ***************************************************************************/
+  bool AieTrace_WinImpl::isCoreModuleEvent(const XAie_Events event)
+  {
+    return ((event >= XAIE_EVENT_NONE_CORE) 
+            && (event <= XAIE_EVENT_INSTR_ERROR_CORE));
+  }
+
+  /****************************************************************************
    * Check if metric set contains DMA events
    * TODO: Traverse events vector instead of based on name
    ***************************************************************************/
-  bool isDmaSet(const std::string metricSet)
+  bool AieTrace_WinImpl::isDmaSet(const std::string metricSet)
   {
     if ((metricSet.find("dma") != std::string::npos)
         || (metricSet.find("s2mm") != std::string::npos)
@@ -488,6 +497,7 @@ namespace xdp {
         else if (type == module_type::shim) {
           // Interface tiles (e.g., PLIO, GMIO)
           auto slaveOrMaster = (tile.itr_mem_col == 0) ? XAIE_STRMSW_SLAVE : XAIE_STRMSW_MASTER;
+          std::string typeName = (tile.itr_mem_col == 0) ? "slave" : "master";
           auto streamPortId  = static_cast<uint8_t>(tile.itr_mem_row);
           std::string msg = "Configuring interface tile stream switch to monitor " 
                           + typeName + " stream port " + std::to_string(streamPortId);
@@ -498,15 +508,6 @@ namespace xdp {
           // Record for runtime config file
           config.port_trace_ids[portnum] = streamPortId;
           config.port_trace_is_master[portnum] = (tile.itr_mem_col != 0);
-          if (isInputSet(type, metricSet)) {
-            config.mm2s_channels[0] = channel0;
-            if (channel0 != channel1)
-              config.mm2s_channels[1] = channel1;
-          } else {
-            config.s2mm_channels[0] = channel0;
-            if (channel0 != channel1)
-              config.s2mm_channels[1] = channel1;
-          }
         }
         else {
           // Memory tiles
@@ -583,14 +584,18 @@ namespace xdp {
         config.combo_event_control[i] = 2;
       for (int i=0; i < events.size(); ++i) {
         uint8_t phyEvent = 0;
-        XAie_EventLogicalToPhysicalConv(aieDevInst, loc, mod, events.at(i), &phyEvent);
+        XAie_EventLogicalToPhysicalConv(&aieDevInst, loc, mod, events.at(i), &phyEvent);
         config.combo_event_input[i] = phyEvent;
       }
 
       // Set events and trigger on OR of events
       //comboEvent->setEvents(events, opts);
-      XAie_UserRscReq userReq = {loc, mod, static_cast<uint32_t>(events.size())};
-			RC = XAie_RequestComboEvents(&aieDevInst, 1, &userReq, opts.size(), &opts[0]);
+      XAie_EventComboConfig(&aieDevInst, loc, mod, XAIE_EVENT_COMBO0, opts[0], 
+                            events[0], events[1]);
+      XAie_EventComboConfig(&aieDevInst, loc, mod, XAIE_EVENT_COMBO1, opts[1], 
+                            events[2], events[3]);
+      XAie_EventComboConfig(&aieDevInst, loc, mod, XAIE_EVENT_COMBO2, opts[2], 
+                            XAIE_EVENT_COMBO_EVENT_0_PL, XAIE_EVENT_COMBO_EVENT_1_PL);
       return comboEvents;
     }
 
@@ -612,11 +617,11 @@ namespace xdp {
       return;
 
     // Set masks for group events
-    XAie_EventGroupControl(aieDevInst, loc, mod, XAIE_EVENT_GROUP_CORE_PROGRAM_FLOW_CORE, 
+    XAie_EventGroupControl(&aieDevInst, loc, mod, XAIE_EVENT_GROUP_CORE_PROGRAM_FLOW_CORE, 
                            GROUP_CORE_FUNCTIONS_MASK);
-    XAie_EventGroupControl(aieDevInst, loc, mod, XAIE_EVENT_GROUP_CORE_STALL_CORE, 
+    XAie_EventGroupControl(&aieDevInst, loc, mod, XAIE_EVENT_GROUP_CORE_STALL_CORE, 
                            GROUP_CORE_STALL_MASK);
-    XAie_EventGroupControl(aieDevInst, loc, mod, XAIE_EVENT_GROUP_STREAM_SWITCH_CORE, 
+    XAie_EventGroupControl(&aieDevInst, loc, mod, XAIE_EVENT_GROUP_STREAM_SWITCH_CORE, 
                            GROUP_STREAM_SWITCH_RUNNING_MASK);
   }
 
@@ -648,7 +653,8 @@ namespace xdp {
    * Configure edge detection events
    ***************************************************************************/
   void AieTrace_WinImpl::configEdgeEvents(const tile_type& tile, const module_type type,
-                                          const std::string metricSet, const XAie_Events event)
+                                          const std::string metricSet, const XAie_Events event,
+                                          const uint8_t channel)
   {
     if ((event != XAIE_EVENT_EDGE_DETECTION_EVENT_0_MEM_TILE)
         && (event != XAIE_EVENT_EDGE_DETECTION_EVENT_1_MEM_TILE)
@@ -676,8 +682,9 @@ namespace xdp {
           "Configuring memory tile edge events to detect rise and fall of event " 
           + std::to_string(eventNum));
 
-      auto tileOffset = _XAie_GetTileAddr(aieDevInst, tile.row, tile.col);
-      XAie_Write32(aieDevInst, tileOffset + AIE_OFFSET_EDGE_CONTROL_MEM_TILE, 
+      auto tileOffset = _XAie_GetTileAddr(&aieDevInst, static_cast<uint8_t>(tile.row), 
+                                          static_cast<uint8_t>(tile.col));
+      XAie_Write32(&aieDevInst, tileOffset + AIE_OFFSET_EDGE_CONTROL_MEM_TILE, 
                    edgeEventsValue);
       return;
     }
@@ -704,8 +711,9 @@ namespace xdp {
         "Configuring AIE tile edge events to detect rise and fall of event " 
         + std::to_string(eventNum));
 
-    auto tileOffset = _XAie_GetTileAddr(aieDevInst, tile.row, tile.col);
-    XAie_Write32(aieDevInst, tileOffset + AIE_OFFSET_EDGE_CONTROL_MEM, 
+    auto tileOffset = _XAie_GetTileAddr(&aieDevInst, static_cast<uint8_t>(tile.row), 
+                                        static_cast<uint8_t>(tile.col));
+    XAie_Write32(&aieDevInst, tileOffset + AIE_OFFSET_EDGE_CONTROL_MEM, 
                  edgeEventsValue);
   }
 
@@ -1001,12 +1009,13 @@ namespace xdp {
         //   return false;
         // }
 
+        auto iter0 = configChannel0.find(tile);
+        auto iter1 = configChannel1.find(tile);
+        uint8_t channel0 = (iter0 == configChannel0.end()) ? 0 : iter0->second;
+        uint8_t channel1 = (iter1 == configChannel1.end()) ? 1 : iter1->second;
+
         // Specify Sel0/Sel1 for memory tile events 21-44
         if (type == module_type::mem_tile) {
-          auto iter0 = configChannel0.find(tile);
-          auto iter1 = configChannel1.find(tile);
-          uint8_t channel0 = (iter0 == configChannel0.end()) ? 0 : iter0->second;
-          uint8_t channel1 = (iter1 == configChannel1.end()) ? 1 : iter1->second;
           configEventSelections(loc, type, metricSet, channel0, channel1);
 
           // Record for runtime config file
@@ -1044,8 +1053,8 @@ namespace xdp {
         // Configure memory trace events
         for (int i = 0; i < memoryEvents.size(); i++) {
           int bcId = firstBroadcastId + numCross;
-          bool isCoreEvent = aie::trace::isCoreModuleEvent(memoryEvents[i]);
-          XAie_ModuleType mod = isCoreEvent ? XAIE_CORE_MOD : XAIE_MEM_MOD;
+          bool isCoreEvent = isCoreModuleEvent(memoryEvents[i]);
+          mod = isCoreEvent ? XAIE_CORE_MOD : XAIE_MEM_MOD;
 
           if (isCoreEvent) {
             if (XAie_EventBroadcast(&aieDevInst, loc, XAIE_CORE_MOD, static_cast<uint8_t>(bcId), memoryEvents[i]) != XAIE_OK)
@@ -1063,7 +1072,7 @@ namespace xdp {
           numMemoryTraceEvents++;
 
           // Configure edge events (as needed)
-          configEdgeEvents(tile, type, metricSet, memoryEvents[i]);
+          configEdgeEvents(tile, type, metricSet, memoryEvents[i], channel0);
 
           // Update config file
           uint8_t phyEvent = 0;
@@ -1071,7 +1080,7 @@ namespace xdp {
 
           if (isCoreEvent) {
             cfgTile->core_trace_config.internal_events_broadcast[bcId] = phyEvent;
-            cfgTile->memory_trace_config.traced_events[i] = aie::bcIdToEvent(bcId);
+            cfgTile->memory_trace_config.traced_events[i] = bcIdToEvent(bcId);
           }
           else {
             cfgTile->memory_tile_trace_config.traced_events[i] = phyEvent;
@@ -1133,6 +1142,16 @@ namespace xdp {
         auto iter1 = configChannel1.find(tile);
         uint8_t channel0 = (iter0 == configChannel0.end()) ? 0 : iter0->second;
         uint8_t channel1 = (iter1 == configChannel1.end()) ? 1 : iter1->second;
+
+        if (isInputSet(type, metricSet)) {
+          cfgTile->interface_tile_trace_config.mm2s_channels[0] = channel0;
+          if (channel0 != channel1)
+            cfgTile->interface_tile_trace_config.mm2s_channels[1] = channel1;
+        } else {
+          cfgTile->interface_tile_trace_config.s2mm_channels[0] = channel0;
+          if (channel0 != channel1)
+            cfgTile->interface_tile_trace_config.s2mm_channels[1] = channel1;
+        }
 
         // Modify events as needed
         modifyEvents(type, subtype, metricSet, channel0, interfaceEvents);
