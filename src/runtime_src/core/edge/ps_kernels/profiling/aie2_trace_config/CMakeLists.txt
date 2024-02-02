@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2018-2022 Xilinx, Inc. All rights reserved.
-# Copyright (C) 2022-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (C) 2022-2024 Advanced Micro Devices, Inc. All rights reserved.
 set(PS_KERNEL_INSTALL_DIR "${XRT_INSTALL_LIB_DIR}/ps_kernels_lib")
 
 include_directories(
@@ -9,7 +9,13 @@ include_directories(
   ${XRT_SOURCE_DIR}/runtime_src/core/edge/include
   )
 
-add_library(aie2_trace_config SHARED "aie2_trace_config.cpp")
+file(GLOB TRACE_CONFIG_FILES
+  "aie2_trace_config.cpp"
+  "aie2_trace_util.cpp"
+  "aie2_trace_util.h"
+)
+
+add_library(aie2_trace_config SHARED ${TRACE_CONFIG_FILES})
 
 set_target_properties(aie2_trace_config PROPERTIES VERSION ${XRT_VERSION_STRING}
   SOVERSION ${XRT_SOVERSION})

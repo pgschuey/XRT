@@ -43,6 +43,15 @@ namespace xdp {
       MEMORY_CONFLICTS2 = 5
     };
 
+    enum class ShimTileMetricSet : uint8_t {
+      INPUT_PORTS = 0,
+      INPUT_PORTS_STALLS = 1,
+      INPUT_PORTS_DETAILS = 2,
+      OUTPUT_PORTS = 3,
+      OUTPUT_PORTS_STALLS = 4,
+      OUTPUT_PORTS_DETAILS = 5
+    };
+
     enum class CounterScheme : uint8_t { ES1 = 0, ES2 = 1, AIE2 = 2 };
 
     enum class Messages : uint8_t {

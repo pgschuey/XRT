@@ -63,24 +63,36 @@ struct EventConfiguration {
         {xdp::built_in::MetricSet::FUNCTIONS, {XAIE_EVENT_INSTR_CALL_CORE, XAIE_EVENT_INSTR_RETURN_CORE}},
         {xdp::built_in::MetricSet::PARTIAL_STALLS, {XAIE_EVENT_INSTR_CALL_CORE, XAIE_EVENT_INSTR_RETURN_CORE}},
         {xdp::built_in::MetricSet::ALL_STALLS, {XAIE_EVENT_INSTR_CALL_CORE, XAIE_EVENT_INSTR_RETURN_CORE}},
-        {xdp::built_in::MetricSet::ALL, {XAIE_EVENT_INSTR_CALL_CORE, XAIE_EVENT_INSTR_RETURN_CORE}}};
+        {xdp::built_in::MetricSet::ALL_DMA, {XAIE_EVENT_INSTR_CALL_CORE, XAIE_EVENT_INSTR_RETURN_CORE}},
+        {xdp::built_in::MetricSet::ALL_STALLS_DMA, {XAIE_EVENT_INSTR_CALL_CORE, XAIE_EVENT_INSTR_RETURN_CORE}},
+        {xdp::built_in::MetricSet::S2MM_CHANNELS_STALLS, {XAIE_EVENT_INSTR_CALL_CORE, XAIE_EVENT_INSTR_RETURN_CORE}},
+        {xdp::built_in::MetricSet::MM2S_CHANNELS_STALLS, {XAIE_EVENT_INSTR_CALL_CORE, XAIE_EVENT_INSTR_RETURN_CORE}}
+    };
 
     // **** Memory Module Trace ****
     // NOTE 1: Core events listed here are broadcast by the resource manager
-    // NOTE 2: These are supplemented with counter events as those are dependent on counter #
-    // NOTE 3: For now, 'all' is the same as 'functions_all_stalls'. Combo events (required
-    //         for all) have limited support in the resource manager.
+    // NOTE 2: These are supplemented with counter events (AIE1 only)
     memoryCrossEventsBase = {
-        {xdp::built_in::MetricSet::FUNCTIONS, {XAIE_EVENT_INSTR_CALL_CORE, XAIE_EVENT_INSTR_RETURN_CORE}},
+        {xdp::built_in::MetricSet::FUNCTIONS, 
+         {XAIE_EVENT_INSTR_CALL_CORE, XAIE_EVENT_INSTR_RETURN_CORE}},
         {xdp::built_in::MetricSet::PARTIAL_STALLS,
-         {XAIE_EVENT_INSTR_CALL_CORE, XAIE_EVENT_INSTR_RETURN_CORE, XAIE_EVENT_STREAM_STALL_CORE,
-          XAIE_EVENT_CASCADE_STALL_CORE, XAIE_EVENT_LOCK_STALL_CORE}},
+         {XAIE_EVENT_INSTR_CALL_CORE, XAIE_EVENT_INSTR_RETURN_CORE, 
+          XAIE_EVENT_STREAM_STALL_CORE, XAIE_EVENT_CASCADE_STALL_CORE, 
+          XAIE_EVENT_LOCK_STALL_CORE}},
         {xdp::built_in::MetricSet::ALL_STALLS,
-         {XAIE_EVENT_INSTR_CALL_CORE, XAIE_EVENT_INSTR_RETURN_CORE, XAIE_EVENT_MEMORY_STALL_CORE,
-          XAIE_EVENT_STREAM_STALL_CORE, XAIE_EVENT_CASCADE_STALL_CORE, XAIE_EVENT_LOCK_STALL_CORE}},
-        {xdp::built_in::MetricSet::ALL,
-         {XAIE_EVENT_INSTR_CALL_CORE, XAIE_EVENT_INSTR_RETURN_CORE, XAIE_EVENT_MEMORY_STALL_CORE,
-          XAIE_EVENT_STREAM_STALL_CORE, XAIE_EVENT_CASCADE_STALL_CORE, XAIE_EVENT_LOCK_STALL_CORE}}};
+         {XAIE_EVENT_INSTR_CALL_CORE, XAIE_EVENT_INSTR_RETURN_CORE, 
+          XAIE_EVENT_MEMORY_STALL_CORE, XAIE_EVENT_STREAM_STALL_CORE, 
+          XAIE_EVENT_CASCADE_STALL_CORE, XAIE_EVENT_LOCK_STALL_CORE}},
+        {xdp::built_in::MetricSet::ALL_DMA,
+         {XAIE_EVENT_INSTR_CALL_CORE, XAIE_EVENT_INSTR_RETURN_CORE, 
+          XAIE_EVENT_PORT_RUNNING_0_CORE, XAIE_EVENT_PORT_RUNNING_1_CORE,
+          XAIE_EVENT_PORT_RUNNING_2_CORE, XAIE_EVENT_PORT_RUNNING_3_CORE}},
+        {xdp::built_in::MetricSet::ALL_STALLS_DMA,
+         {XAIE_EVENT_INSTR_CALL_CORE, XAIE_EVENT_INSTR_RETURN_CORE, 
+          XAIE_EVENT_GROUP_CORE_STALL_CORE, XAIE_EVENT_PORT_RUNNING_0_CORE, 
+          XAIE_EVENT_PORT_RUNNING_1_CORE, XAIE_EVENT_PORT_RUNNING_2_CORE, 
+          XAIE_EVENT_PORT_RUNNING_3_CORE}}
+    };
 
     if (params->hwGen == 1) {
       if (params->counterScheme == static_cast<uint8_t>(xdp::built_in::CounterScheme::ES1)) {
@@ -94,7 +106,8 @@ struct EventConfiguration {
         memoryCounterEndEvents = {XAIE_EVENT_NONE_MEM, XAIE_EVENT_NONE_MEM};
         memoryCounterEventValues = {ES1_TRACE_COUNTER, ES1_TRACE_COUNTER * ES1_TRACE_COUNTER};
 
-      } else if (params->counterScheme == static_cast<uint8_t>(xdp::built_in::CounterScheme::ES2)) {
+      } 
+      else if (params->counterScheme == static_cast<uint8_t>(xdp::built_in::CounterScheme::ES2)) {
         // ES2 requires only 1 performance counter
         coreCounterStartEvents = {XAIE_EVENT_ACTIVE_CORE};
         coreCounterEndEvents = {XAIE_EVENT_DISABLED_CORE};
@@ -123,9 +136,20 @@ struct EventConfiguration {
         {xdp::built_in::MemTileMetricSet::OUTPUT_CHANNELS_STALLS,
          {XAIE_EVENT_DMA_MM2S_SEL0_START_TASK_MEM_TILE, XAIE_EVENT_DMA_MM2S_SEL0_FINISHED_BD_MEM_TILE,
           XAIE_EVENT_DMA_MM2S_SEL0_FINISHED_TASK_MEM_TILE, XAIE_EVENT_DMA_MM2S_SEL0_STALLED_LOCK_ACQUIRE_MEM_TILE,
-          XAIE_EVENT_DMA_MM2S_SEL0_STREAM_BACKPRESSURE_MEM_TILE, XAIE_EVENT_DMA_MM2S_SEL0_MEMORY_STARVATION_MEM_TILE}}};
+          XAIE_EVENT_DMA_MM2S_SEL0_STREAM_BACKPRESSURE_MEM_TILE, XAIE_EVENT_DMA_MM2S_SEL0_MEMORY_STARVATION_MEM_TILE}},
+        {xdp::built_in::MemTileMetricSet::MEMORY_CONFLICTS1,
+         {XAIE_EVENT_CONFLICT_DM_BANK_0_MEM_TILE, XAIE_EVENT_CONFLICT_DM_BANK_1_MEM_TILE,
+          XAIE_EVENT_CONFLICT_DM_BANK_2_MEM_TILE, XAIE_EVENT_CONFLICT_DM_BANK_3_MEM_TILE,
+          XAIE_EVENT_CONFLICT_DM_BANK_4_MEM_TILE, XAIE_EVENT_CONFLICT_DM_BANK_5_MEM_TILE,
+          XAIE_EVENT_CONFLICT_DM_BANK_6_MEM_TILE, XAIE_EVENT_CONFLICT_DM_BANK_7_MEM_TILE}},
+        {xdp::built_in::MemTileMetricSet::MEMORY_CONFLICTS2,
+         {XAIE_EVENT_CONFLICT_DM_BANK_8_MEM_TILE, XAIE_EVENT_CONFLICT_DM_BANK_9_MEM_TILE,
+          XAIE_EVENT_CONFLICT_DM_BANK_10_MEM_TILE, XAIE_EVENT_CONFLICT_DM_BANK_11_MEM_TILE,
+          XAIE_EVENT_CONFLICT_DM_BANK_12_MEM_TILE, XAIE_EVENT_CONFLICT_DM_BANK_13_MEM_TILE,
+          XAIE_EVENT_CONFLICT_DM_BANK_14_MEM_TILE, XAIE_EVENT_CONFLICT_DM_BANK_15_MEM_TILE}}
+    };
 
-    // MEM tile trace is always on
+    // Memory tile trace is always on
     XAie_Events memTileTraceStartEvent = XAIE_EVENT_TRUE_MEM_TILE;
     XAie_Events memTileTraceEndEvent = XAIE_EVENT_NONE_MEM_TILE;
   }

@@ -318,7 +318,7 @@ namespace xdp {
     return (absRow - rowOffset);
   }
 
-  module_type AieTrace_WinImpl::getTileType(uint16_t absRow)
+  module_type AieTrace_WinImpl::getTileType(uint8_t absRow)
   {
     if (absRow == 0)
       return module_type::shim;
@@ -496,18 +496,20 @@ namespace xdp {
         }
         else if (type == module_type::shim) {
           // Interface tiles (e.g., PLIO, GMIO)
-          auto slaveOrMaster = (tile.itr_mem_col == 0) ? XAIE_STRMSW_SLAVE : XAIE_STRMSW_MASTER;
+          auto slaveOrMaster = (tile.is_master == 0) ? XAIE_STRMSW_SLAVE : XAIE_STRMSW_MASTER;
+          auto streamPortId  = tile.stream_id;
+
           std::string typeName = (tile.itr_mem_col == 0) ? "slave" : "master";
-          auto streamPortId  = static_cast<uint8_t>(tile.itr_mem_row);
           std::string msg = "Configuring interface tile stream switch to monitor " 
                           + typeName + " stream port " + std::to_string(streamPortId);
           xrt_core::message::send(severity_level::debug, "XRT", msg);
+          
           //switchPortRsc->setPortToSelect(slaveOrMaster, SOUTH, streamPortId);
           XAie_EventSelectStrmPort(&aieDevInst, loc, 0, slaveOrMaster, SOUTH, streamPortId);
 
           // Record for runtime config file
           config.port_trace_ids[portnum] = streamPortId;
-          config.port_trace_is_master[portnum] = (tile.itr_mem_col != 0);
+          config.port_trace_is_master[portnum] = (tile.is_master != 0);
         }
         else {
           // Memory tiles
@@ -682,8 +684,7 @@ namespace xdp {
           "Configuring memory tile edge events to detect rise and fall of event " 
           + std::to_string(eventNum));
 
-      auto tileOffset = _XAie_GetTileAddr(&aieDevInst, static_cast<uint8_t>(tile.row), 
-                                          static_cast<uint8_t>(tile.col));
+      auto tileOffset = _XAie_GetTileAddr(&aieDevInst, tile.row, tile.col);
       XAie_Write32(&aieDevInst, tileOffset + AIE_OFFSET_EDGE_CONTROL_MEM_TILE, 
                    edgeEventsValue);
       return;
@@ -692,6 +693,7 @@ namespace xdp {
     // Below is AIE tile support
     
     // Event is DMA_MM2S_stalled_lock or DMA_S2MM_stream_starvation
+    // Event is DMA_S2MM_Sel0_stream_starvation or DMA_MM2S_Sel0_stalled_lock
     uint16_t eventNum = isInputSet(type, metricSet)
         ? ((channel == 0) ? EVENT_MEM_DMA_MM2S_0_STALLED_LOCK
                           : EVENT_MEM_DMA_MM2S_1_STALLED_LOCK)
@@ -711,8 +713,7 @@ namespace xdp {
         "Configuring AIE tile edge events to detect rise and fall of event " 
         + std::to_string(eventNum));
 
-    auto tileOffset = _XAie_GetTileAddr(&aieDevInst, static_cast<uint8_t>(tile.row), 
-                                        static_cast<uint8_t>(tile.col));
+    auto tileOffset = _XAie_GetTileAddr(&aieDevInst, tile.row, tile.col);
     XAie_Write32(&aieDevInst, tileOffset + AIE_OFFSET_EDGE_CONTROL_MEM, 
                  edgeEventsValue);
   }
@@ -773,7 +774,7 @@ namespace xdp {
       auto type       = getTileType(row);
       auto typeInt    = static_cast<int>(type);
       //auto& xaieTile  = aieDevice->tile(col, row);
-      auto loc        = XAie_TileLoc(static_cast<uint8_t>(col), static_cast<uint8_t>(row));
+      auto loc        = XAie_TileLoc(col, row);
 
       std::stringstream cmsg;
       cmsg << "Configuring tile (" << col << "," << row << ") in module type: " << typeInt << ".";

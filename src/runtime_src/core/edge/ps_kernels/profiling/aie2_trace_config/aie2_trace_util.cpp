@@ -1,5 +1,4 @@
-/**
- * Copyright (C) 2022-2023 Advanced Micro Devices, Inc. - All rights reserved
+/* Copyright (C) 2022-2023 Advanced Micro Devices, Inc. - All rights reserved
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may
  * not use this file except in compliance with the License. A copy of the
@@ -14,28 +13,144 @@
  * under the License.
  */
 
-#define XDP_PLUGIN_SOURCE
-
-#include "xdp/profile/plugin/aie_trace/util/aie_trace_config.h"
-#include "xdp/profile/plugin/aie_trace/util/aie_trace_util.h"
-#include "xdp/profile/database/static_info/aie_util.h"
-
-#include <boost/algorithm/string.hpp>
-#include <cmath>
 #include <cstring>
-#include <iostream>
-#include <memory>
-#include <regex>
+#include <vector>
 
-#include "core/common/message.h"
-#include "core/include/xrt/xrt_kernel.h"
-#include "xdp/profile/device/device_intf.h"
-#include "xdp/profile/device/tracedefs.h"
-#include "xdp/profile/plugin/vp_base/utility.h"
+#include "core/edge/include/pscontext.h"
+#include "core/edge/user/shim.h"
+#include "event_configuration.h"
+#include "xaiefal/xaiefal.hpp"
+#include "xaiengine.h"
 #include "xdp/profile/database/static_info/aie_constructs.h"
+#include "xdp/profile/plugin/aie_trace/x86/aie_trace_kernel_config.h"
 
-namespace xdp::aie::trace {
-  using severity_level = xrt_core::message::severity_level;
+// Namespace for helper functions
+namespace xdp::aie::trace::ps_kernel {
+  using Messages = xdp::built_in::Messages;
+
+  /****************************************************************************
+   * Add message to return array
+   ***************************************************************************/
+  void addMessage(xdp::built_in::MessageConfiguration* msgcfg, 
+                  xdp::built_in::Messages ERROR_MSG,
+                  std::vector<uint32_t>& paramsArray)
+  {
+    static int messageCounter = 0;
+
+    if (messageCounter < xdp::built_in::MessageConfiguration::MAX_NUM_MESSAGES) {
+      msgcfg->packets[messageCounter].messageCode = static_cast<uint8_t>(ERROR_MSG);
+      std::copy(std::begin(paramsArray), std::end(paramsArray), 
+                std::begin(msgcfg->packets[messageCounter].params));
+      messageCounter++;
+      msgcfg->numMessages = messageCounter;
+    }
+  }
+
+  /****************************************************************************
+   * Check if given tile has free resources
+   ***************************************************************************/
+  bool tileHasFreeRsc(xaiefal::XAieDev* aieDevice, XAie_LocType& loc, EventConfiguration& config,
+                      const xdp::built_in::TraceInputConfiguration* params, 
+                      xdp::built_in::MessageConfiguration* msgcfg,
+                      xdp::module_type type, const xdp::built_in::MetricSet metricSet)
+  {
+    auto stats = aieDevice->getRscStat(XAIEDEV_DEFAULT_GROUP_AVAIL);
+    uint32_t available = 0;
+    uint32_t required = 0;
+
+    // Memory Module perf counters
+    available = stats.getNumRsc(loc, XAIE_MEM_MOD, XAIE_PERFCNT_RSC);
+    required = config.memoryCounterStartEvents.size();
+    if (available < required) {
+      std::vector<uint32_t> src = {available, required, 0, 0};
+      addMessage(msgcfg, Messages::NO_MEM_MODULE_PCS, src);
+      return false;
+    }
+
+    // Memory Module trace slots
+    available = stats.getNumRsc(loc, XAIE_MEM_MOD, xaiefal::XAIE_TRACE_EVENTS_RSC);
+    required = config.memoryCounterStartEvents.size() 
+             + config.memoryCrossEventsBase[metricSet].size();
+    if (available < required) {
+      std::vector<uint32_t> src = {available, required, 0, 0};
+      addMessage(msgcfg, Messages::NO_MEM_MODULE_TRACE_SLOTS, src);
+      return false;
+    }
+
+    // Core resources not needed in MEM tiles
+    if (type == xdp::module_type::mem_tile)
+      return true;
+
+    // Core Module perf counters
+    available = stats.getNumRsc(loc, XAIE_CORE_MOD, XAIE_PERFCNT_RSC);
+    required = config.coreCounterStartEvents.size();
+    if (params->useDelay) {
+      ++required;
+      if (params->useOneDelayCounter)
+        ++required;
+    } else if (params->useGraphIterator)
+      ++required;
+
+    if (available < required) {
+      std::vector<uint32_t> src = {available, required, 0, 0};
+      addMessage(msgcfg, Messages::NO_CORE_MODULE_PCS, src);
+      return false;
+    }
+
+    // Core Module trace slots
+    available = stats.getNumRsc(loc, XAIE_CORE_MOD, xaiefal::XAIE_TRACE_EVENTS_RSC);
+    required = config.coreCounterStartEvents.size() + config.coreEventsBase[metricSet].size();
+    if (available < required) {
+      std::vector<uint32_t> src = {available, required, 0, 0};
+      addMessage(msgcfg, Messages::NO_CORE_MODULE_TRACE_SLOTS, src);
+      return false;
+    }
+
+    // Core Module broadcasts. 2 events for starting/ending trace
+    available = stats.getNumRsc(loc, XAIE_CORE_MOD, XAIE_BCAST_CHANNEL_RSC);
+    required = config.memoryCrossEventsBase[metricSet].size() + 2;
+    if (available < required) {
+      std::vector<uint32_t> src = {available, required, 0, 0};
+      addMessage(msgcfg, Messages::NO_CORE_MODULE_BROADCAST_CHANNELS, src);
+      return false;
+    }
+
+    return true;
+  }
+
+  /****************************************************************************
+   * Release requested counters
+   ***************************************************************************/
+  void releaseCurrentTileCounters(EventConfiguration& config)
+  {
+    while (!config.mCoreCounters.empty()) {
+      config.mCoreCounters.back()->stop();
+      config.mCoreCounters.back()->release();
+      config.mCoreCounters.pop_back();
+    }
+
+    while (!config.mMemoryCounters.empty()) {
+      config.mMemoryCounters.back()->stop();
+      config.mMemoryCounters.back()->release();
+      config.mMemoryCounters.pop_back();
+    }
+  }
+
+  /****************************************************************************
+   * Check if metric set contains DMA events
+   ***************************************************************************/
+  bool isDmaSet(const xdp::built_in::MetricSet metricSet)
+  {
+    switch (metricSet) {
+      case xdp::built_in::MetricSet::ALL_DMA:
+      case xdp::built_in::MetricSet::ALL_STALLS_DMA:
+      case xdp::built_in::MetricSet::S2MM_CHANNELS_STALLS:
+      case xdp::built_in::MetricSet::MM2S_CHANNELS_STALLS:
+        return true;
+      default:
+        return false;
+    }
+  }
 
   /****************************************************************************
    * Configure stream switch event ports for monitoring purposes
@@ -43,9 +158,10 @@ namespace xdp::aie::trace {
   std::vector<std::shared_ptr<xaiefal::XAieStreamPortSelect>>
   configStreamSwitchPorts(XAie_DevInst* aieDevInst, const tile_type& tile,
                           xaiefal::XAieTile& xaieTile, const XAie_LocType loc,
-                          const module_type type, const std::string metricSet,
-                          const uint8_t channel0, const uint8_t channel1, 
-                          std::vector<XAie_Events>& events, aie_cfg_base& config)
+                          const module_type type, const uint8_t channel0, const uint8_t channel1, 
+                          std::vector<XAie_Events>& events, aie_cfg_base& config,
+                          const xdp::built_in::MetricSet metricSet,
+                          const xdp::built_in::MemTileMetricSet memTileMetricSet)
   {
     std::vector<std::shared_ptr<xaiefal::XAieStreamPortSelect>> streamPorts;
     std::map<uint8_t, std::shared_ptr<xaiefal::XAieStreamPortSelect>> switchPortMap;
@@ -54,11 +170,11 @@ namespace xdp::aie::trace {
     for (int i=0; i < events.size(); ++i) {
       // Ensure applicable event
       auto event = events.at(i);
-      if (!isStreamSwitchPortEvent(event))
+      if (!xdp::aie::trace::isStreamSwitchPortEvent(event))
         continue;
 
       bool newPort = false;
-      auto portnum = getPortNumberFromEvent(event);
+      auto portnum = xdp::aie::trace::getPortNumberFromEvent(event);
 
       // New port needed: reserver, configure, and store
       if (switchPortMap.find(portnum) == switchPortMap.end()) {
@@ -69,26 +185,14 @@ namespace xdp::aie::trace {
         switchPortMap[portnum] = switchPortRsc;
 
         if (type == module_type::core) {
-          // AIE Tiles
-          if (metricSet.find("trace") != std::string::npos) {
-            // Monitor core or memory trace
-            uint8_t traceSelect = (event == XAIE_EVENT_PORT_RUNNING_0_CORE) ? 0 : 1;
-            std::string msg = "Configuring core module stream switch to monitor trace port " 
-                            + std::to_string(traceSelect);
-            xrt_core::message::send(severity_level::debug, "XRT", msg);
-            switchPortRsc->setPortToSelect(XAIE_STRMSW_SLAVE, TRACE, traceSelect);
-
-            config.port_trace_ids[portnum] = traceSelect;
-            config.port_trace_is_master[portnum] = false;
-          }
-          else {
-            // Monitor DMA channels
+          // AIE Tiles - monitor DMA channels
+          if (isDmaSet(metricSet)) {
             uint8_t channelNum = portnum % 2;
             auto slaveOrMaster = (portnum < 2) ? XAIE_STRMSW_SLAVE : XAIE_STRMSW_MASTER;
-            std::string typeName = (portnum < 2) ? "MM2S" : "S2MM";
-            std::string msg = "Configuring core module stream switch to monitor DMA " 
-                            + typeName + " channel " + std::to_string(channelNum);
-            xrt_core::message::send(severity_level::debug, "XRT", msg);
+            //std::string typeName = (portnum < 2) ? "MM2S" : "S2MM";
+            //std::string msg = "Configuring core module stream switch to monitor DMA " 
+            //                + typeName + " channel " + std::to_string(channelNum);
+            //xrt_core::message::send(severity_level::debug, "XRT", msg);
             switchPortRsc->setPortToSelect(slaveOrMaster, DMA, channelNum);
 
             config.port_trace_ids[portnum] = channelNum;
@@ -98,39 +202,30 @@ namespace xdp::aie::trace {
         else if (type == module_type::shim) {
           // Interface tiles (e.g., PLIO, GMIO)
           // Grab slave/master and stream ID
-          auto slaveOrMaster = (tile.is_master == 0) ? XAIE_STRMSW_SLAVE : XAIE_STRMSW_MASTER;
-          std::string typeName = (tile.is_master == 0) ? "slave" : "master"; 
-          auto streamPortId  = static_cast<uint8_t>(tile.stream_id);
-          std::string msg = "Configuring interface tile stream switch to monitor " 
-                          + typeName + " stream port " + std::to_string(streamPortId);
-          xrt_core::message::send(severity_level::debug, "XRT", msg);
+          auto slaveOrMaster = (tile.itr_mem_col == 0) ? XAIE_STRMSW_SLAVE : XAIE_STRMSW_MASTER;
+          auto streamPortId  = static_cast<uint8_t>(tile.itr_mem_row);
+          //std::string typeName = (tile.itr_mem_col == 0) ? "slave" : "master";
+          //std::string msg = "Configuring interface tile stream switch to monitor " 
+          //                + typeName + " stream port " + std::to_string(streamPortId);
+          //xrt_core::message::send(severity_level::debug, "XRT", msg);
           switchPortRsc->setPortToSelect(slaveOrMaster, SOUTH, streamPortId);
 
           config.port_trace_ids[portnum] = streamPortId;
-          config.port_trace_is_master[portnum] = (tile.itr_mem_col != 0);
+          config.port_trace_is_master[portnum] = (tile.is_master != 0);
         }
         else {
           // Memory tiles
-          if (metricSet.find("trace") != std::string::npos) {
-            xrt_core::message::send(severity_level::debug, "XRT", 
-              "Configuring memory tile stream switch to monitor trace port 0");
-            switchPortRsc->setPortToSelect(XAIE_STRMSW_SLAVE, TRACE, 0);
+          uint8_t channel = (portnum == 0) ? channel0 : channel1;
+          auto slaveOrMaster = isInputSet(type, metricSet, memTileMetricSet) 
+                              ? XAIE_STRMSW_MASTER : XAIE_STRMSW_SLAVE;
+          //std::string typeName = (slaveOrMaster == XAIE_STRMSW_MASTER) ? "master" : "slave";
+          //std::string msg = "Configuring memory tile stream switch to monitor " 
+          //                + typeName + " stream port " + std::to_string(channel);
+          //xrt_core::message::send(severity_level::debug, "XRT", msg);
+          switchPortRsc->setPortToSelect(slaveOrMaster, DMA, channel);
 
-            config.port_trace_ids[portnum] = 0;
-            config.port_trace_is_master[portnum] = false;
-          }
-          else {
-            uint8_t channel = (portnum == 0) ? channel0 : channel1;
-            auto slaveOrMaster = isInputSet(type, metricSet) ? XAIE_STRMSW_MASTER : XAIE_STRMSW_SLAVE;
-            std::string typeName = (slaveOrMaster == XAIE_STRMSW_MASTER) ? "master" : "slave";
-            std::string msg = "Configuring memory tile stream switch to monitor " 
-                            + typeName + " stream port " + std::to_string(channel);
-            xrt_core::message::send(severity_level::debug, "XRT", msg);
-            switchPortRsc->setPortToSelect(slaveOrMaster, DMA, channel);
-
-            config.port_trace_ids[portnum] = channel;
-            config.port_trace_is_master[portnum] = (slaveOrMaster == XAIE_STRMSW_MASTER);
-          }
+          config.port_trace_ids[portnum] = channel;
+          config.port_trace_is_master[portnum] = (slaveOrMaster == XAIE_STRMSW_MASTER);
         }
       }
 
@@ -161,7 +256,7 @@ namespace xdp::aie::trace {
   std::vector<XAie_Events>
   configComboEvents(XAie_DevInst* aieDevInst, xaiefal::XAieTile& xaieTile, 
                     const XAie_LocType loc, const XAie_ModuleType mod,
-                    const module_type type, const std::string metricSet,
+                    const module_type type, const xdp::built_in::MetricSet metricSet,
                     aie_cfg_base& config)
   {
     // Only needed for core/memory modules and metric sets that include DMA events
@@ -195,40 +290,10 @@ namespace xdp::aie::trace {
       return comboEvents;
     }
 
-    // Combo events do not auto-broadcast from core to memory module,
-    // so let's avoid the complexity and find a different method. 
-#if 0
-    // Below is for memory modules
-
-    // Memory_Combo0 = (Active OR Group_Stream_Switch)
-    auto comboEvent0 = xaieTile.mem().comboEvent();
-    comboEvents.push_back(XAIE_EVENT_COMBO_EVENT_0_MEM);
-
-    std::vector<XAie_Events> events0;
-    events0.push_back(XAIE_EVENT_ACTIVE_CORE);
-    events0.push_back(XAIE_EVENT_GROUP_STREAM_SWITCH_CORE);
-    std::vector<XAie_EventComboOps> opts0;
-    opts0.push_back(XAIE_EVENT_COMBO_E1_OR_E2);
-    
-    comboEvent0->setEvents(events0, opts0);
-
-    // Memory_Combo1 = (Group_Core_Program_Flow AND Core_Combo2)
-    auto comboEvent1 = xaieTile.mem().comboEvent();
-    comboEvents.push_back(XAIE_EVENT_COMBO_EVENT_1_MEM);
-
-    std::vector<XAie_Events> events1;
-    events1.push_back(XAIE_EVENT_GROUP_CORE_PROGRAM_FLOW_CORE);
-    events1.push_back(XAIE_EVENT_COMBO_EVENT_2_CORE);
-    std::vector<XAie_EventComboOps> opts1;
-    opts1.push_back(XAIE_EVENT_COMBO_E1_AND_E2);
-    
-    comboEvent1->setEvents(events1, opts1);
-#else
     // Since we're tracing DMA events, start trace right away.
     // Specify user event 0 as trace end so we can flush after run.
     comboEvents.push_back(XAIE_EVENT_TRUE_MEM);
     comboEvents.push_back(XAIE_EVENT_USER_EVENT_0_MEM);
-#endif
     return comboEvents;
   }
 
@@ -237,7 +302,7 @@ namespace xdp::aie::trace {
    ***************************************************************************/
   void configGroupEvents(XAie_DevInst* aieDevInst, const XAie_LocType loc,
                          const XAie_ModuleType mod, const module_type type, 
-                         const std::string metricSet)
+                         const xdp::built_in::MetricSet metricSet)
   {
     // Only needed for core module and metric sets that include DMA events
     if (!isDmaSet(metricSet) || (type != module_type::core))
@@ -256,22 +321,17 @@ namespace xdp::aie::trace {
    * Configure event selection (memory tiles only)
    ***************************************************************************/
   void configEventSelections(XAie_DevInst* aieDevInst, const XAie_LocType loc,
-                             const module_type type, const std::string metricSet, 
+                             const xdp::module_type type, 
+                             const xdp::built_in::MemTileMetricSet metricSet,
                              const uint8_t channel0, const uint8_t channel1)
   {
-    if (type != module_type::mem_tile)
+    if (type != xdp::module_type::mem_tile)
       return;
 
-    XAie_DmaDirection dmaDir = isInputSet(type, metricSet) ? DMA_S2MM : DMA_MM2S;
-
-    if (aie::isDebugVerbosity()) {
-      std::string typeName = (dmaDir == DMA_S2MM) ? "S2MM" : "MM2S";
-      std::string msg = "Configuring memory tile event selections to DMA " 
-                      + typeName + " channels " + std::to_string(channel0) 
-                      + " and " + std::to_string(channel1);
-      xrt_core::message::send(severity_level::debug, "XRT", msg);
-    }
-
+    XAie_DmaDirection dmaDir = ((metricSet == xdp::built_in::MemTileMetricSet::INPUT_CHANNELS) ||
+                                (metricSet == xdp::built_in::MemTileMetricSet::INPUT_CHANNELS_STALLS))
+                                   ? DMA_S2MM
+                                   : DMA_MM2S;
     XAie_EventSelectDmaChannel(aieDevInst, loc, 0, dmaDir, channel0);
     XAie_EventSelectDmaChannel(aieDevInst, loc, 1, dmaDir, channel1);
   }
@@ -279,20 +339,21 @@ namespace xdp::aie::trace {
   /****************************************************************************
    * Configure edge detection events
    ***************************************************************************/
-  void configEdgeEvents(XAie_DevInst* aieDevInst, const tile_type& tile,
-                        const module_type type, const std::string metricSet, 
-                        const XAie_Events event, const uint8_t channel)
+  void configEdgeEvents(XAie_DevInst* aieDevInst, const tile_type& tile, const module_type type,
+                        const XAie_Events event, const uint8_t channel,
+                        const xdp::built_in::MetricSet metricSet,
+                        const xdp::built_in::MemTileMetricSet memTileMetricSet)
   {
     if ((event != XAIE_EVENT_EDGE_DETECTION_EVENT_0_MEM_TILE)
         && (event != XAIE_EVENT_EDGE_DETECTION_EVENT_1_MEM_TILE)
         && (event != XAIE_EVENT_EDGE_DETECTION_EVENT_0_MEM)
         && (event != XAIE_EVENT_EDGE_DETECTION_EVENT_1_MEM))
       return;
-
+    
     // Catch memory tiles
     if (type == module_type::mem_tile) {
       // Event is DMA_S2MM_Sel0_stream_starvation or DMA_MM2S_Sel0_stalled_lock
-      uint16_t eventNum = isInputSet(type, metricSet)
+      uint16_t eventNum = isInputSet(type, metricSet, memTileMetricSet)
           ? EVENT_MEM_TILE_DMA_S2MM_SEL0_STREAM_STARVATION
           : EVENT_MEM_TILE_DMA_MM2S_SEL0_STALLED_LOCK;
 
@@ -305,10 +366,6 @@ namespace xdp::aie::trace {
       //  7:0  Input event for edge event 0
       uint32_t edgeEventsValue = (1 << 26) + (eventNum << 16) + (1 << 9) + eventNum;
 
-      xrt_core::message::send(severity_level::debug, "XRT",
-          "Configuring memory tile edge events to detect rise and fall of event " 
-          + std::to_string(eventNum));
-
       auto tileOffset = _XAie_GetTileAddr(aieDevInst, tile.row, tile.col);
       XAie_Write32(aieDevInst, tileOffset + AIE_OFFSET_EDGE_CONTROL_MEM_TILE, 
                    edgeEventsValue);
@@ -318,7 +375,7 @@ namespace xdp::aie::trace {
     // Below is AIE tile support
     
     // Event is DMA_MM2S_stalled_lock or DMA_S2MM_stream_starvation
-    uint16_t eventNum = isInputSet(type, metricSet)
+    uint16_t eventNum = isInputSet(type, metricSet, memTileMetricSet)
         ? ((channel == 0) ? EVENT_MEM_DMA_MM2S_0_STALLED_LOCK
                           : EVENT_MEM_DMA_MM2S_1_STALLED_LOCK)
         : ((channel == 0) ? EVENT_MEM_DMA_S2MM_0_STREAM_STARVATION
@@ -343,12 +400,39 @@ namespace xdp::aie::trace {
   }
 
   /****************************************************************************
+   * Configure trace start on graph iteration
+   ***************************************************************************/
+  bool configStartIteration(xaiefal::XAieMod& core, EventConfiguration& config,
+                            const xdp::built_in::TraceInputConfiguration* params)
+  {
+    XAie_ModuleType mod = XAIE_CORE_MOD;
+    // Count up by 1 for every iteration
+    auto pc = core.perfCounter();
+    if (pc->initialize(mod, XAIE_EVENT_INSTR_EVENT_0_CORE, mod, 
+                       XAIE_EVENT_INSTR_EVENT_0_CORE) != XAIE_OK)
+      return false;
+    if (pc->reserve() != XAIE_OK)
+      return false;
+    pc->changeThreshold(params->iterationCount);
+    XAie_Events counterEvent;
+    pc->getCounterEvent(mod, counterEvent);
+    // Reset when done counting
+    pc->changeRstEvent(mod, counterEvent);
+    if (pc->start() != XAIE_OK)
+      return false;
+
+    config.coreTraceStartEvent = counterEvent;
+
+    return true;
+  }
+
+  /****************************************************************************
    * Configure delay for trace start event
    ***************************************************************************/
-  bool configStartDelay(xaiefal::XAieMod& core, uint64_t delay,
-                        XAie_Events& startEvent)
+  bool configStartDelay(xaiefal::XAieMod& core, EventConfiguration& config,
+                        const xdp::built_in::TraceInputConfiguration* params)
   {
-    if (delay == 0)
+    if (!params->useDelay)
       return false;
 
     // This algorithm daisy chains counters to get an effective 64 bit delay
@@ -356,21 +440,13 @@ namespace xdp::aie::trace {
     uint32_t delayCyclesHigh = 0;
     uint32_t delayCyclesLow = 0;
     XAie_ModuleType mod = XAIE_CORE_MOD;
-    bool useTwoCounters = (delay > std::numeric_limits<uint32_t>::max());
 
-    if (useTwoCounters) {
+    if (!params->useOneDelayCounter) {
       // ceil(x/y) where x and y are  positive integers
-      delayCyclesHigh = static_cast<uint32_t>(1 + ((delay - 1) / std::numeric_limits<uint32_t>::max()));
-      delayCyclesLow = static_cast<uint32_t>(delay / delayCyclesHigh);
+      delayCyclesHigh = static_cast<uint32_t>(1 + ((params->delayCycles - 1) / std::numeric_limits<uint32_t>::max()));
+      delayCyclesLow = static_cast<uint32_t>(params->delayCycles / delayCyclesHigh);
     } else {
-      delayCyclesLow = static_cast<uint32_t>(delay);
-    }
-
-    if (isDebugVerbosity()) {
-      std::stringstream msg;
-      msg << "Configuring AIE trace to start after delay of " << delay << " (low: " 
-          << delayCyclesLow << ", high: " << delayCyclesHigh << ")" << std::endl;
-      xrt_core::message::send(severity_level::debug, "XRT", msg.str());
+      delayCyclesLow = static_cast<uint32_t>(params->delayCycles);
     }
 
     // Configure lower 32 bits
@@ -379,9 +455,7 @@ namespace xdp::aie::trace {
       return false;
     if (pc->reserve() != XAIE_OK)
       return false;
-
     pc->changeThreshold(delayCyclesLow);
-    
     XAie_Events counterEvent;
     pc->getCounterEvent(mod, counterEvent);
     // Reset when done counting
@@ -391,7 +465,7 @@ namespace xdp::aie::trace {
 
     // Configure upper 32 bits if necessary
     // Use previous counter to start a new counter
-    if (useTwoCounters && delayCyclesHigh) {
+    if (!params->useOneDelayCounter && delayCyclesHigh) {
       auto pc = core.perfCounter();
       // Count by 1 when previous counter generates event
       if (pc->initialize(mod, counterEvent, mod, counterEvent) != XAIE_OK)
@@ -406,39 +480,9 @@ namespace xdp::aie::trace {
         return false;
     }
 
-    startEvent = counterEvent;
+    config.coreTraceStartEvent = counterEvent;
+
     return true;
   }
 
-  /****************************************************************************
-   * Configure trace start on graph iteration
-   ***************************************************************************/
-  bool configStartIteration(xaiefal::XAieMod& core, uint32_t iteration,
-                            XAie_Events& startEvent)
-  {
-    XAie_ModuleType mod = XAIE_CORE_MOD;
-    // Count up by 1 for every iteration
-    auto pc = core.perfCounter();
-    if (pc->initialize(mod, XAIE_EVENT_INSTR_EVENT_0_CORE, 
-                       mod, XAIE_EVENT_INSTR_EVENT_0_CORE) != XAIE_OK)
-      return false;
-    if (pc->reserve() != XAIE_OK)
-      return false;
-
-    xrt_core::message::send(severity_level::debug, "XRT", 
-        "Configuring AIE trace to start on iteration " + std::to_string(iteration));
-
-    pc->changeThreshold(iteration);
-    
-    XAie_Events counterEvent;
-    pc->getCounterEvent(mod, counterEvent);
-    // Reset when done counting
-    pc->changeRstEvent(mod, counterEvent);
-    if (pc->start() != XAIE_OK)
-      return false;
-
-    startEvent = counterEvent;
-    return true;
-  }
-
-}  // namespace xdp
+}  // namespace

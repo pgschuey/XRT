@@ -21,7 +21,9 @@
 #include "event_configuration.h"
 #include "xaiefal/xaiefal.hpp"
 #include "xaiengine.h"
+#include "xdp/profile/database/static_info/aie_util.h"
 #include "xdp/profile/database/static_info/aie_constructs.h"
+#include "xdp/profile/plugin/aie_trace/util/aie_trace_config.h"
 #include "xdp/profile/plugin/aie_trace/x86/aie_trace_kernel_config.h"
 
 // User private data structure container (context object) definition
@@ -45,217 +47,16 @@ class xrtHandles : public pscontext {
 
 // Anonymous namespace for helper functions used in this file
 namespace {
-  using Messages = xdp::built_in::Messages;
-
-  void addMessage(xdp::built_in::MessageConfiguration* msgcfg, xdp::built_in::Messages ERROR_MSG,
-                  std::vector<uint32_t>& paramsArray)
-  {
-    static int messageCounter = 0;
-
-    if (messageCounter < xdp::built_in::MessageConfiguration::MAX_NUM_MESSAGES) {
-      msgcfg->packets[messageCounter].messageCode = static_cast<uint8_t>(ERROR_MSG);
-      std::copy(std::begin(paramsArray), std::end(paramsArray), std::begin(msgcfg->packets[messageCounter].params));
-      messageCounter++;
-      msgcfg->numMessages = messageCounter;
-    }
-  }
-
-  bool tileHasFreeRsc(xaiefal::XAieDev* aieDevice, XAie_LocType& loc, EventConfiguration& config,
-                      const xdp::built_in::TraceInputConfiguration* params, xdp::built_in::MessageConfiguration* msgcfg,
-                      xdp::module_type type, const xdp::built_in::MetricSet metricSet)
-  {
-    auto stats = aieDevice->getRscStat(XAIEDEV_DEFAULT_GROUP_AVAIL);
-    uint32_t available = 0;
-    uint32_t required = 0;
-
-    // Memory Module perf counters
-    available = stats.getNumRsc(loc, XAIE_MEM_MOD, XAIE_PERFCNT_RSC);
-    required = config.memoryCounterStartEvents.size();
-    if (available < required) {
-      std::vector<uint32_t> src = {available, required, 0, 0};
-      addMessage(msgcfg, Messages::NO_MEM_MODULE_PCS, src);
-      return false;
-    }
-
-    // Memory Module trace slots
-    available = stats.getNumRsc(loc, XAIE_MEM_MOD, xaiefal::XAIE_TRACE_EVENTS_RSC);
-    required = config.memoryCounterStartEvents.size() + config.memoryCrossEventsBase[metricSet].size();
-    if (available < required) {
-      std::vector<uint32_t> src = {available, required, 0, 0};
-      addMessage(msgcfg, Messages::NO_MEM_MODULE_TRACE_SLOTS, src);
-      return false;
-    }
-
-    // Core resources not needed in MEM tiles
-    if (type == xdp::module_type::mem_tile)
-      return true;
-
-    // Core Module perf counters
-    available = stats.getNumRsc(loc, XAIE_CORE_MOD, XAIE_PERFCNT_RSC);
-    required = config.coreCounterStartEvents.size();
-    if (params->useDelay) {
-      ++required;
-      if (params->useOneDelayCounter)
-        ++required;
-    } else if (params->useGraphIterator)
-      ++required;
-
-    if (available < required) {
-      std::vector<uint32_t> src = {available, required, 0, 0};
-      addMessage(msgcfg, Messages::NO_CORE_MODULE_PCS, src);
-      return false;
-    }
-
-    // Core Module trace slots
-    available = stats.getNumRsc(loc, XAIE_CORE_MOD, xaiefal::XAIE_TRACE_EVENTS_RSC);
-    required = config.coreCounterStartEvents.size() + config.coreEventsBase[metricSet].size();
-    if (available < required) {
-      std::vector<uint32_t> src = {available, required, 0, 0};
-      addMessage(msgcfg, Messages::NO_CORE_MODULE_TRACE_SLOTS, src);
-      return false;
-    }
-
-    // Core Module broadcasts. 2 events for starting/ending trace
-    available = stats.getNumRsc(loc, XAIE_CORE_MOD, XAIE_BCAST_CHANNEL_RSC);
-    required = config.memoryCrossEventsBase[metricSet].size() + 2;
-    if (available < required) {
-      std::vector<uint32_t> src = {available, required, 0, 0};
-      addMessage(msgcfg, Messages::NO_CORE_MODULE_BROADCAST_CHANNELS, src);
-      return false;
-    }
-
-    return true;
-  }
-
-  void releaseCurrentTileCounters(EventConfiguration& config)
-  {
-    while (!config.mCoreCounters.empty()) {
-      config.mCoreCounters.back()->stop();
-      config.mCoreCounters.back()->release();
-      config.mCoreCounters.pop_back();
-    }
-
-    while (!config.mMemoryCounters.empty()) {
-      config.mMemoryCounters.back()->stop();
-      config.mMemoryCounters.back()->release();
-      config.mMemoryCounters.pop_back();
-    }
-  }
-
-  bool configureStartIteration(xaiefal::XAieMod& core, EventConfiguration& config,
-                               const xdp::built_in::TraceInputConfiguration* params)
-  {
-    XAie_ModuleType mod = XAIE_CORE_MOD;
-    // Count up by 1 for every iteration
-    auto pc = core.perfCounter();
-    if (pc->initialize(mod, XAIE_EVENT_INSTR_EVENT_0_CORE, mod, XAIE_EVENT_INSTR_EVENT_0_CORE) != XAIE_OK)
-      return false;
-    if (pc->reserve() != XAIE_OK)
-      return false;
-    pc->changeThreshold(params->iterationCount);
-    XAie_Events counterEvent;
-    pc->getCounterEvent(mod, counterEvent);
-    // Reset when done counting
-    pc->changeRstEvent(mod, counterEvent);
-    if (pc->start() != XAIE_OK)
-      return false;
-
-    config.coreTraceStartEvent = counterEvent;
-
-    return true;
-  }
-
-  bool configureStartDelay(xaiefal::XAieMod& core, EventConfiguration& config,
-                           const xdp::built_in::TraceInputConfiguration* params)
-  {
-    if (!params->useDelay)
-      return false;
-
-    // This algorithm daisy chains counters to get an effective 64 bit delay
-    // counterLow -> counterHigh -> trace start
-    uint32_t delayCyclesHigh = 0;
-    uint32_t delayCyclesLow = 0;
-    XAie_ModuleType mod = XAIE_CORE_MOD;
-
-    if (!params->useOneDelayCounter) {
-      // ceil(x/y) where x and y are  positive integers
-      delayCyclesHigh = static_cast<uint32_t>(1 + ((params->delayCycles - 1) / std::numeric_limits<uint32_t>::max()));
-      delayCyclesLow = static_cast<uint32_t>(params->delayCycles / delayCyclesHigh);
-    } else {
-      delayCyclesLow = static_cast<uint32_t>(params->delayCycles);
-    }
-
-    // Configure lower 32 bits
-    auto pc = core.perfCounter();
-    if (pc->initialize(mod, XAIE_EVENT_ACTIVE_CORE, mod, XAIE_EVENT_DISABLED_CORE) != XAIE_OK)
-      return false;
-    if (pc->reserve() != XAIE_OK)
-      return false;
-    pc->changeThreshold(delayCyclesLow);
-    XAie_Events counterEvent;
-    pc->getCounterEvent(mod, counterEvent);
-    // Reset when done counting
-    pc->changeRstEvent(mod, counterEvent);
-    if (pc->start() != XAIE_OK)
-      return false;
-
-    // Configure upper 32 bits if necessary
-    // Use previous counter to start a new counter
-    if (!params->useOneDelayCounter && delayCyclesHigh) {
-      auto pc = core.perfCounter();
-      // Count by 1 when previous counter generates event
-      if (pc->initialize(mod, counterEvent, mod, counterEvent) != XAIE_OK)
-        return false;
-      if (pc->reserve() != XAIE_OK)
-        return false;
-      pc->changeThreshold(delayCyclesHigh);
-      pc->getCounterEvent(mod, counterEvent);
-      // Reset when done counting
-      pc->changeRstEvent(mod, counterEvent);
-      if (pc->start() != XAIE_OK)
-        return false;
-    }
-
-    config.coreTraceStartEvent = counterEvent;
-
-    return true;
-  }
-
-  xdp::module_type getTileType(uint16_t absRow, uint16_t offset)
-  {
-    if (absRow == 0)
-      return xdp::module_type::shim;
-    if (absRow < offset)
-      return xdp::module_type::mem_tile;
-    return xdp::module_type::core;
-  }
-
-  inline uint32_t bcIdToEvent(int bcId)
-  {
-    // Core broadcast event base defined on AIE1 as 107 in architecture
-    constexpr int core_broadcast_event_base = 107;
-    return static_cast<uint32_t>(bcId + core_broadcast_event_base);
-  }
-
-  void configEventSelections(XAie_DevInst* aieDevInst, const XAie_LocType loc, const XAie_ModuleType mod,
-                             const xdp::module_type type, const xdp::built_in::MemTileMetricSet metricSet,
-                             const uint8_t channel0, const uint8_t channel1)
-  {
-    if (type != xdp::module_type::mem_tile)
-      return;
-
-    XAie_DmaDirection dmaDir = ((metricSet == xdp::built_in::MemTileMetricSet::INPUT_CHANNELS) ||
-                                (metricSet == xdp::built_in::MemTileMetricSet::INPUT_CHANNELS_STALLS))
-                                   ? DMA_S2MM
-                                   : DMA_MM2S;
-    XAie_EventSelectDmaChannel(aieDevInst, loc, 0, dmaDir, channel0);
-    XAie_EventSelectDmaChannel(aieDevInst, loc, 1, dmaDir, channel1);
-  }
-
-  bool setMetricsSettings(XAie_DevInst* aieDevInst, xaiefal::XAieDev* aieDevice, EventConfiguration& config,
+  /****************************************************************************
+   * Configure requested tiles with trace metrics and settings
+   ***************************************************************************/
+  bool setMetricsSettings(XAie_DevInst* aieDevInst, xaiefal::XAieDev* aieDevice, 
+                          EventConfiguration& config,
                           const xdp::built_in::TraceInputConfiguration* params,
-                          xdp::built_in::TraceOutputConfiguration* tilecfg, xdp::built_in::MessageConfiguration* msgcfg,
-                          std::vector<XAie_LocType>& traceFlushLocs, std::vector<XAie_LocType>& memTileTraceFlushLocs)
+                          xdp::built_in::TraceOutputConfiguration* tilecfg, 
+                          xdp::built_in::MessageConfiguration* msgcfg,
+                          std::vector<XAie_LocType>& traceFlushLocs, 
+                          std::vector<XAie_LocType>& memTileTraceFlushLocs)
   {
     xaiefal::Logger::get().setLogLevel(xaiefal::LogLevel::DEBUG);
 
@@ -303,7 +104,7 @@ namespace {
       auto tile = tileMetric.first;
       auto col = tile.col;
       auto row = tile.row;
-      auto type = getTileType(row, params->offset);
+      auto type = getModuleType(row, params->offset);
 
       // NOTE: resource manager requires absolute row number
       xaiefal::XAieMod core;
@@ -466,10 +267,10 @@ namespace {
 
         // Delay cycles and user control are not compatible with each other
         if (params->useGraphIterator) {
-          if (!configureStartIteration(core, config, params))
+          if (!configStartIteration(core, config, params))
             break;
         } else if (params->useDelay) {
-          if (!configureStartDelay(core, config, params))
+          if (!configStartDelay(core, config, params))
             break;
         }
 
@@ -596,7 +397,7 @@ namespace {
             cfgTile.memory_tile_trace_config.traced_events[S] = phyEvent;
           } else {
             cfgTile.core_trace_config.internal_events_broadcast[bcId] = phyEvent;
-            cfgTile.memory_trace_config.traced_events[S] = bcIdToEvent(bcId);
+            cfgTile.memory_trace_config.traced_events[S] = aie::bcIdToEvent(bcId);
           }
         }
 
@@ -642,7 +443,7 @@ namespace {
 
           } else {
             XAie_EventLogicalToPhysicalConv(aieDevInst, loc, XAIE_CORE_MOD, traceStartEvent, &phyEvent);
-            cfgTile.memory_trace_config.start_event = bcIdToEvent(bcId);
+            cfgTile.memory_trace_config.start_event = aie::bcIdToEvent(bcId);
             cfgTile.core_trace_config.internal_events_broadcast[bcId] = phyEvent;
           }
 
@@ -651,10 +452,10 @@ namespace {
           coreToMemBcMask |= (bcBit << bcId);
           if (type == xdp::module_type::mem_tile) {
             XAie_EventLogicalToPhysicalConv(aieDevInst, loc, XAIE_MEM_MOD, traceEndEvent, &phyEvent);
-            cfgTile.memory_tile_trace_config.stop_event = bcIdToEvent(bcId);
+            cfgTile.memory_tile_trace_config.stop_event = aie::bcIdToEvent(bcId);
           } else {
             XAie_EventLogicalToPhysicalConv(aieDevInst, loc, XAIE_CORE_MOD, traceEndEvent, &phyEvent);
-            cfgTile.memory_trace_config.stop_event = bcIdToEvent(bcId);
+            cfgTile.memory_trace_config.stop_event = aie::bcIdToEvent(bcId);
             cfgTile.core_trace_config.internal_events_broadcast[bcId] = phyEvent;
 
             // Odd absolute rows change east mask end even row change west mask
@@ -725,9 +526,17 @@ namespace {
     return 0;
   }  // end setMetricsSettings
 
-  void flushAieTileTraceModule(XAie_DevInst* aieDevInst, EventConfiguration& config,
-                               std::vector<XAie_LocType>& traceFlushLocs,
-                               std::vector<XAie_LocType>& memTileTraceFlushLocs)
+  /****************************************************************************
+   * Flush trace modules by forcing end events
+   *
+   * Trace modules buffer partial packets. At end of run, this needs to be 
+   * flushed using a custom end event. This applies to trace windowing and 
+   * passive tiles like memory and interface.
+   *
+   ***************************************************************************/
+  void flushTraceModules(XAie_DevInst* aieDevInst, EventConfiguration& config,
+                         std::vector<XAie_LocType>& traceFlushLocs,
+                         std::vector<XAie_LocType>& memTileTraceFlushLocs)
   {
     /*
      * Flush for trace windowing
@@ -809,10 +618,10 @@ __attribute__((visibility("default"))) int aie2_trace_config(uint8_t* input, uin
     // Clean up
     free(tilecfg);
 
-    // flush iteraiton
+    // flush iteration
   } else if (iteration == 1) {
-    flushAieTileTraceModule(constructs->aieDevInst, config, constructs->traceFlushLocs,
-                            constructs->memTileTraceFlushLocs);
+    flushTraceModules(constructs->aieDevInst, config, constructs->traceFlushLocs,
+                      constructs->memTileTraceFlushLocs);
   }
 
   return 0;
