@@ -200,8 +200,7 @@ bool AieTrace_x86Impl::setMetricsSettings(uint64_t deviceId, void *handle) {
       module_type type = getTileType(cfg->tiles[i].row);
       auto cfgTile = std::make_unique<aie_cfg_tile>(cfg->tiles[i].column,
                                                     cfg->tiles[i].row, type);
-      cfgTile->trace_metric_set =
-          metadata->getMetricString(cfg->tiles[i].trace_metric_set);
+      cfgTile->trace_metric_set = cfg->tiles[i].trace_metric_set;
 
       for (uint32_t corePC = 0; corePC < NUM_TRACE_PCS; ++corePC) {
         auto &cfgData = cfgTile->core_trace_config.pc[corePC];
@@ -229,8 +228,7 @@ bool AieTrace_x86Impl::setMetricsSettings(uint64_t deviceId, void *handle) {
       }
 
       // Updated Traced Events for all Tiles
-      for (uint32_t tracedEvent = 0; tracedEvent < NUM_TRACE_EVENTS;
-           tracedEvent++) {
+      for (uint32_t tracedEvent = 0; tracedEvent < NUM_TRACE_EVENTS; tracedEvent++) {
         cfgTile->core_trace_config.traced_events[tracedEvent] =
             cfg->tiles[i].core_trace_config.traced_events[tracedEvent];
         cfgTile->memory_trace_config.traced_events[tracedEvent] =
@@ -273,16 +271,12 @@ bool AieTrace_x86Impl::setMetricsSettings(uint64_t deviceId, void *handle) {
       cfgTile->memory_tile_trace_config.packet_type =
           cfg->tiles[i].memory_tile_trace_config.packet_type;
 
-      // Add Mem-tile specific metrics
+      // Add memory tile specific metrics
       for (uint32_t channel = 0; channel < NUM_CHANNEL_SELECTS; channel++) {
         cfgTile->memory_tile_trace_config.port_trace_ids[channel] =
             cfg->tiles[i].memory_tile_trace_config.port_trace_ids[channel];
         cfgTile->memory_tile_trace_config.port_trace_is_master[channel] =
-            cfg->tiles[i]
-                        .memory_tile_trace_config
-                        .port_trace_is_master[channel] == 1
-                ? true
-                : false;
+            (cfg->tiles[i].memory_tile_trace_config.port_trace_is_master[channel] == 1);
 
         cfgTile->memory_tile_trace_config.s2mm_channels[channel] =
             cfg->tiles[i].memory_tile_trace_config.s2mm_channels[channel];
@@ -449,6 +443,12 @@ void AieTrace_x86Impl::parseMessages(uint8_t *messageStruct) {
           << " memory trace events for AIE tile (" << packet.params[1] << ","
           << packet.params[2] << ").";
       xrt_core::message::send(severity_level::debug, "XRT", msg.str());
+      break;
+
+    case Messages::INTERFACE_TRACE_NOT_RESERVED:
+      msg << "Unable to reserve trace control for interface tile ("
+          << packet.params[0] << "," << packet.params[1] << ").";
+      xrt_core::message::send(severity_level::warning, "XRT", msg.str());
       break;
 
     case Messages::ALL_TRACE_EVENTS_RESERVED:

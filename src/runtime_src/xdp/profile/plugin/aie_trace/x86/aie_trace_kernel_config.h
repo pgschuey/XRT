@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2022-2023 Advanced Micro Devices, Inc. - All rights reserved
+ * Copyright (C) 2022-2024 Advanced Micro Devices, Inc. - All rights reserved
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may
  * not use this file except in compliance with the License. A copy of the
@@ -18,6 +18,7 @@
 #define AIE_TRACE_CONFIG_DOT_H
 
 #include <stdint.h>
+#include <string>
 
 #include "xdp/profile/device/tracedefs.h"
 
@@ -66,8 +67,10 @@ namespace xdp {
       CORE_TRACE_EVENTS_RESERVED = 8,
       MEMORY_MODULE_TRACE_NOT_RESERVED = 9,
       MEMORY_TRACE_EVENTS_RESERVED = 10,
-      ALL_TRACE_EVENTS_RESERVED = 11,
-      ENABLE_TRACE_FLUSH = 12,
+      INTERFACE_TRACE_NOT_RESERVED = 11,
+      INTERFACE_TRACE_RESERVED = 12,
+      ALL_TRACE_EVENTS_RESERVED = 13,
+      ENABLE_TRACE_FLUSH = 14
     };
 
     struct MessagePacket {
@@ -85,8 +88,8 @@ namespace xdp {
       uint16_t col;
       uint16_t row;
       uint8_t metricSet;
-      uint8_t channel0 = -1;  // Only relevant for MemTiles
-      uint8_t channel1 = -1;  // Only relevant for MemTiles
+      uint8_t channel0 = -1;  // Relevant for memory & interface tiles
+      uint8_t channel1 = -1;  // Relevant for memory & interface tiles
     };
 
     // This struct is used for input for the PS kernel.  It contains all of
@@ -97,10 +100,6 @@ namespace xdp {
     // Since this is transferred from host to device, it should have
     // a C-Style interface.
     struct TraceInputConfiguration {
-      static constexpr auto NUM_CORE_TRACE_EVENTS = 8;
-      static constexpr auto NUM_MEMORY_TRACE_EVENTS = 8;
-      static constexpr auto NUM_MEM_TILE_TRACE_EVENTS = 8;
-
       uint32_t delayCycles;
       uint32_t iterationCount;
       uint16_t numTiles;
@@ -129,6 +128,8 @@ namespace xdp {
       uint32_t packet_type = 0;
       uint32_t start_event = EVENT_CORE_ACTIVE;
       uint32_t stop_event = EVENT_CORE_DISABLED;
+      uint8_t port_trace_ids[NUM_SWITCH_MONITOR_PORTS] = {};
+      bool port_trace_is_master[NUM_SWITCH_MONITOR_PORTS];
       uint32_t traced_events[NUM_TRACE_EVENTS] = {};
       uint32_t internal_events_broadcast[NUM_BROADCAST_EVENTS] = {};
       uint32_t broadcast_mask_west = BROADCAST_MASK_DEFAULT;
@@ -152,15 +153,32 @@ namespace xdp {
       PCData pc[NUM_TRACE_PCS];
     };
 
+    struct ShimTileTraceData {
+      uint8_t port_trace_ids[NUM_SWITCH_MONITOR_PORTS] = {};
+      bool port_trace_is_master[NUM_SWITCH_MONITOR_PORTS];
+      uint8_t s2mm_channels[NUM_CHANNEL_SELECTS] = {};
+      uint8_t mm2s_channels[NUM_CHANNEL_SELECTS] = {};
+
+      uint32_t packet_type = 0;
+      uint32_t start_event = EVENT_CORE_ACTIVE;
+      uint32_t stop_event = EVENT_CORE_DISABLED;
+      uint32_t traced_events[NUM_TRACE_EVENTS] = {};
+      uint32_t internal_events_broadcast[NUM_BROADCAST_EVENTS] = {};
+      uint32_t broadcast_mask_west = BROADCAST_MASK_DEFAULT;
+      uint32_t broadcast_mask_east = BROADCAST_MASK_DEFAULT;
+      PCData pc[NUM_TRACE_PCS];
+    };
+
     struct TileData {
      public:
       uint8_t type;
-      uint8_t trace_metric_set;
       uint32_t column;
       uint32_t row;
+      std::string trace_metric_set;
       TileTraceData core_trace_config;
       TileTraceData memory_trace_config;
       MemTileTraceData memory_tile_trace_config;
+      ShimTileTraceData interface_tile_trace_config;
       TileData(uint32_t c, uint32_t r) : column(c), row(r)
       {}
     };
@@ -170,12 +188,13 @@ namespace xdp {
       uint16_t numTiles;
       uint32_t numTileCoreTraceEvents[NUM_OUTPUT_TRACE_EVENTS] = {};
       uint32_t numTileMemoryTraceEvents[NUM_OUTPUT_TRACE_EVENTS] = {};
-      uint32_t numTileMemTileTraceEvents[NUM_OUTPUT_TRACE_EVENTS] = {};
+      uint32_t numTileMemoryTileTraceEvents[NUM_OUTPUT_TRACE_EVENTS] = {};
+      uint32_t numTileInterfaceTileTraceEvents[NUM_OUTPUT_TRACE_EVENTS] = {};
       TileData tiles[1];
     };
 
     struct GMIOBuffer {
-      uint32_t shimColumn;  // From TraceGMIo
+      uint32_t shimColumn;  // From TraceGMIO
       uint32_t channelNumber;
       uint32_t burstLength;
       uint64_t physAddr;
