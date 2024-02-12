@@ -42,8 +42,8 @@ struct EventConfiguration {
   XAie_Events traceFlushEndEvent = XAIE_EVENT_INSTR_EVENT_1_CORE;
   
   // Trace for memory and interface tiles is always on
-  XAie_Events memTileTraceStartEvent = XAIE_EVENT_TRUE_MEM_TILE;
-  XAie_Events memTileTraceEndEvent = XAIE_EVENT_NONE_MEM_TILE;
+  XAie_Events memoryTileTraceStartEvent = XAIE_EVENT_TRUE_MEM_TILE;
+  XAie_Events memoryTileTraceEndEvent = XAIE_EVENT_NONE_MEM_TILE;
   XAie_Events interfaceTileTraceStartEvent = XAIE_EVENT_TRUE_PL;
   XAie_Events interfaceTileTraceEndEvent = XAIE_EVENT_USER_EVENT_1_PL;
 
@@ -68,10 +68,10 @@ struct EventConfiguration {
     std::string counterScheme = "es2";
 
     // Pre-defined metric sets
-    coreEventSets = aie::trace::getCoreEventSets(hwGen);
-    memoryEventSets = aie::trace::getMemoryEventSets(hwGen);
-    memoryTileEventSets = aie::trace::getMemoryTileEventSets(hwGen);
-    interfaceTileEventSets = aie::trace::getInterfaceTileEventSets(hwGen);
+    coreEventSets = xdp::aie::trace::getCoreEventSets(hwGen);
+    memoryEventSets = xdp::aie::trace::getMemoryEventSets(hwGen);
+    memoryTileEventSets = xdp::aie::trace::getMemoryTileEventSets(hwGen);
+    interfaceTileEventSets = xdp::aie::trace::getInterfaceTileEventSets(hwGen);
 
     // Core/memory module counters
     coreCounterStartEvents = xdp::aie::trace::getCoreCounterStartEvents(hwGen, counterScheme);

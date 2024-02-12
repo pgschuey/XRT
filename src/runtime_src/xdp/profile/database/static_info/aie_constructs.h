@@ -289,7 +289,7 @@ enum class module_type {
     aie_cfg_tile(uint32_t c, uint32_t r, module_type t) : column(c), row(r), type(t) {}
   };
 
-  // Used by by IPU profiling/debug on Windows
+  // Used by client profiling/debug
   typedef struct {
     uint64_t perf_address;
   } profile_data_t;
