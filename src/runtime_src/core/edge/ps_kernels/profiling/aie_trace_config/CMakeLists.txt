@@ -16,8 +16,8 @@ include_directories(
 file(GLOB TRACE_CONFIG_FILES
   "${XRT_SOURCE_DIR}/runtime_src/core/edge/ps_kernels/profiling/aie_trace_config/*.cpp"
   "${XRT_SOURCE_DIR}/runtime_src/core/edge/ps_kernels/profiling/aie_trace_config/*.h"
-  "${XRT_SOURCE_DIR}/runtime_src/xdp/profile/plugin/aie_trace/util/*.cpp"
-  "${XRT_SOURCE_DIR}/runtime_src/xdp/profile/plugin/aie_trace/util/*.h"
+  "${XRT_SOURCE_DIR}/runtime_src/xdp/profile/plugin/aie_trace/util/aie_trace_util.cpp"
+  "${XRT_SOURCE_DIR}/runtime_src/xdp/profile/plugin/aie_trace/util/aie_trace_util.h"
   "${XRT_SOURCE_DIR}/runtime_src/xdp/profile/device/tracedefs.h"
   "${XRT_SOURCE_DIR}/runtime_src/xdp/profile/database/static_info/aie_util.cpp"
   "${XRT_SOURCE_DIR}/runtime_src/xdp/profile/database/static_info/aie_util.h"

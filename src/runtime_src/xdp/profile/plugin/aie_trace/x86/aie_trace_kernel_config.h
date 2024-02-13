@@ -100,7 +100,7 @@ namespace xdp {
     // Since this is transferred from host to device, it should have
     // a C-Style interface.
     struct TraceInputConfiguration {
-      uint32_t delayCycles;
+      uint64_t delayCycles;
       uint32_t iterationCount;
       uint16_t numTiles;
       uint8_t counterScheme;
@@ -131,6 +131,8 @@ namespace xdp {
       uint8_t port_trace_ids[NUM_SWITCH_MONITOR_PORTS] = {};
       bool port_trace_is_master[NUM_SWITCH_MONITOR_PORTS];
       uint32_t traced_events[NUM_TRACE_EVENTS] = {};
+      uint32_t combo_event_input[NUM_COMBO_EVENT_INPUT] = {};
+      uint32_t combo_event_control[NUM_COMBO_EVENT_CONTROL] = {};
       uint32_t internal_events_broadcast[NUM_BROADCAST_EVENTS] = {};
       uint32_t broadcast_mask_west = BROADCAST_MASK_DEFAULT;
       uint32_t broadcast_mask_east = BROADCAST_MASK_DEFAULT;
