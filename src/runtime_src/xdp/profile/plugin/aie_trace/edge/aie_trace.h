@@ -32,7 +32,7 @@ namespace xdp {
 
     virtual void updateDevice();
     virtual void flushTraceModules();
-    void pollTimers(uint64_t index, void* handle);
+    void pollTimers(uint64_t deviceId, void* handle);
     void freeResources();
     
   private:

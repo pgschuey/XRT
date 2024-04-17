@@ -941,10 +941,10 @@ namespace xdp {
   /****************************************************************************
    * Poll AIE timers (for system timeline only)
    ***************************************************************************/
-  void AieTrace_EdgeImpl::pollTimers(uint64_t index, void* handle)
+  void AieTrace_EdgeImpl::pollTimers(uint64_t deviceId, void* handle)
   {
     // Wait until xclbin has been loaded and device has been updated in database
-    if (!(db->getStaticInfo().isDeviceReady(index)))
+    if (!(db->getStaticInfo().isDeviceReady(deviceId)))
       return;
     XAie_DevInst* aieDevInst =
       static_cast<XAie_DevInst*>(db->getStaticInfo().getAieDevInst(fetchAieDevInst, handle)) ;
@@ -956,7 +956,24 @@ namespace xdp {
     if (tileMetrics.empty())
       return;
 
-    static auto tile   = tileMetrics.begin()->first;
+    // Identify the tile to use for timer polling
+    // NOTE: We assume a common time domain across all tiles. To improve
+    //       accuracy, we should poll a minimum of one tile per column.
+    static xdp::tile_type tile;
+    //static auto tile = tileMetrics.begin()->first;
+    //static auto tile = tileMetrics.rbegin()->first;
+    static bool getTimeOffsetTile = true;
+    if (getTimeOffsetTile) {
+      // Grab tile with middle index of map
+      auto midIter = tileMetrics.begin();
+      std::advance(midIter, tileMetrics.size() / 2);
+      tile = midIter->first;
+      getTimeOffsetTile = false;
+
+      xrt_core::message::send(severity_level::debug, "XRT", "Using tile (" + std::to_string(tile.col)
+        + "," + std::to_string(tile.row) + ") to poll its timer for trace synchronization.");
+    }
+
     auto loc           = XAie_TileLoc(tile.col, tile.row);
     auto moduleType    = aie::getModuleType(tile.row, metadata->getRowOffset());
     auto falModuleType =  (moduleType == module_type::core) ? XAIE_CORE_MOD 
@@ -973,6 +990,6 @@ namespace xdp {
     values.push_back( aie::getRelativeRow(tile.row, metadata->getRowOffset()) );
     values.push_back(timerValue);
 
-    db->getDynamicInfo().addAIETimerSample(index, timestamp1, timestamp2, values);
+    db->getDynamicInfo().addAIETimerSample(deviceId, timestamp1, timestamp2, values);
   }
 }  // namespace xdp
