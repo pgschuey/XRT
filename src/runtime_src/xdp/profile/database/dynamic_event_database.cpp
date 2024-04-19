@@ -291,8 +291,8 @@ namespace xdp {
     return device_db->moveAIESamples();
   }
 
-  void VPDynamicDatabase::addAIETimerSample(uint64_t deviceId, unsigned long timestamp1,
-          unsigned long timestamp2, const std::vector<uint64_t>& values)
+  void VPDynamicDatabase::addAIETimerSample(uint64_t deviceId, uint64_t timestamp1,
+          uint64_t timestamp2, const std::vector<uint64_t>& values)
   {
     auto device_db = getDeviceDB(deviceId);
     device_db->addAIETimerSample(timestamp1, timestamp2, values);

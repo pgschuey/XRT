@@ -939,6 +939,19 @@ namespace xdp {
   }
 
   /****************************************************************************
+   * Correct potential overflow
+   ***************************************************************************/
+  uint64_t AieTrace_EdgeImpl::correctOverflow(const std::string name, uint64_t curr, uint64_t prev) 
+  {
+    if (curr >= prev)
+      return curr;
+
+    xrt_core::message::send(severity_level::warning, "XRT", "Found overflow in " + name
+      + " timer (value: " + std::to_string(curr) + ", prev value: " + std::to_string(prev) + ")");
+    return (curr + xdp::OVERFLOW_32BITS);
+  }
+
+  /****************************************************************************
    * Poll AIE timers (for system timeline only)
    ***************************************************************************/
   void AieTrace_EdgeImpl::pollTimers(uint64_t deviceId, void* handle)
@@ -956,38 +969,52 @@ namespace xdp {
     if (tileMetrics.empty())
       return;
 
-    // Identify the tile to use for timer polling
+    static xdp::tile_type tile;
+    static XAie_LocType loc;
+    static XAie_ModuleType falModuleType = XAIE_CORE_MOD;
+    static uint64_t relativeRow = 0;
+
+    // Identify the tile to use for timer polling (do only once)
     // NOTE: We assume a common time domain across all tiles. To improve
     //       accuracy, we should poll a minimum of one tile per column.
-    static xdp::tile_type tile;
-    //static auto tile = tileMetrics.begin()->first;
-    //static auto tile = tileMetrics.rbegin()->first;
     static bool getTimeOffsetTile = true;
     if (getTimeOffsetTile) {
-      // Grab tile with middle index of map
+      // Grab middle tile in map
+      // NOTE: This was found to be the most accurate since resets and
+      //       core enables are broadcast left to right across the array.
       auto midIter = tileMetrics.begin();
       std::advance(midIter, tileMetrics.size() / 2);
       tile = midIter->first;
+
+      loc = XAie_TileLoc(tile.col, tile.row);
+      auto moduleType = aie::getModuleType(tile.row, metadata->getRowOffset());
+      auto falModuleType =  (moduleType == module_type::core) ? XAIE_CORE_MOD 
+                         : ((moduleType == module_type::shim) ? XAIE_PL_MOD 
+                         : XAIE_MEM_MOD);
+      relativeRow = aie::getRelativeRow(tile.row, metadata->getRowOffset());
       getTimeOffsetTile = false;
 
       xrt_core::message::send(severity_level::debug, "XRT", "Using tile (" + std::to_string(tile.col)
         + "," + std::to_string(tile.row) + ") to poll its timer for trace synchronization.");
     }
-
-    auto loc           = XAie_TileLoc(tile.col, tile.row);
-    auto moduleType    = aie::getModuleType(tile.row, metadata->getRowOffset());
-    auto falModuleType =  (moduleType == module_type::core) ? XAIE_CORE_MOD 
-                       : ((moduleType == module_type::shim) ? XAIE_PL_MOD 
-                       : XAIE_MEM_MOD);
-
-    uint64_t timerValue = 0;  
-    auto timestamp1 = xrt_core::time_ns();
-    XAie_ReadTimer(aieDevInst, loc, falModuleType, &timerValue);
-    auto timestamp2 = xrt_core::time_ns();
     
+    // Get host timestamps and AIE timer
+    uint64_t timerValue = 0;
+    uint64_t timestamp1 = xrt_core::time_ns();
+    XAie_ReadTimer(aieDevInst, loc, falModuleType, &timerValue);
+    uint64_t timestamp2 = xrt_core::time_ns();
+    
+    // Correct overflows if needed
+    timerValue = correctOverflow("AIE", timerValue, prevAieTimerValue);
+    timestamp1 = correctOverflow("first host", timestamp1, prevHostTimestamp);
+    timestamp2 = correctOverflow("second host", timestamp2, timestamp1);
+    prevAieTimerValue = timerValue;
+    prevHostTimestamp = timestamp2;
+
+    // Store this sample set
     std::vector<uint64_t> values;
     values.push_back(tile.col);
-    values.push_back( aie::getRelativeRow(tile.row, metadata->getRowOffset()) );
+    values.push_back(relativeRow);
     values.push_back(timerValue);
 
     db->getDynamicInfo().addAIETimerSample(deviceId, timestamp1, timestamp2, values);

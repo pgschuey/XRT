@@ -24,6 +24,7 @@
 #include "xdp/profile/plugin/aie_trace/util/aie_trace_config.h"
 
 namespace xdp {
+  const uint64_t OVERFLOW_32BITS = 0x100000000ULL;
 
   class AieTrace_EdgeImpl : public AieTraceImpl {
   public:
@@ -41,8 +42,12 @@ namespace xdp {
                         const module_type type, const std::string& metricSet);
     bool checkAieDeviceAndRuntimeMetrics(uint64_t deviceId, void* handle);
     bool setMetricsSettings(uint64_t deviceId, void* handle);
+    uint64_t correctOverflow(const std::string name, uint64_t curr, uint64_t prev);
 
   private:
+    uint64_t prevAieTimerValue = 0;
+    uint64_t prevHostTimestamp = 0;
+
     typedef XAie_Events EventType;
     typedef std::vector<EventType> EventVector;
     typedef std::vector<uint32_t> ValueVector;
