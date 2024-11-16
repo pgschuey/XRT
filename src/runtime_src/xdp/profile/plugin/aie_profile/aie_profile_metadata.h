@@ -62,8 +62,9 @@ class AieProfileMetadata {
         module_type::shim, {
           "input_throughputs", "output_throughputs", 
           "s2mm_throughputs", "mm2s_throughputs",
-          "input_stalls", "output_stalls",
-          "s2mm_stalls", "mm2s_stalls", "packets", METRIC_BYTE_COUNT}
+          "input_stalls", "output_stalls", "s2mm_stalls", 
+          "mm2s_stalls", "packets", METRIC_BYTE_COUNT,
+          "uc_dma_activity", "uc_axis_throughputs", "uc_core"}
       },
       {
         module_type::mem_tile, {

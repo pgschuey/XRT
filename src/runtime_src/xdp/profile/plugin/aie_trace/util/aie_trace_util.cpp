@@ -244,6 +244,26 @@ namespace xdp::aie::trace {
           XAIE_EVENT_DMA_S2MM_0_STREAM_STARVATION_PL,      XAIE_EVENT_DMA_S2MM_0_MEMORY_BACKPRESSURE_PL};
     }
 
+    // Microcontroller sets
+    if (hwGen >= 5) {
+      eventSets["uc_dma_dm2mm"] = {
+          XAIE_EVENT_DMA_DM2MM_START_TASK_UC,              XAIE_EVENT_DMA_DM2MM_FINISHED_BD_UC,
+          XAIE_EVENT_DMA_DM2MM_FINISHED_TASK_UC,           XAIE_EVENT_DMA_DM2MM_LOCAL_MEMORY_STARVATION_UC,
+	        XAIE_EVENT_DMA_DM2MM_REMOTE_MEMORY_BACKPRESSURE_UC};
+      eventSets["uc_dma_mm2dm"] = {
+          XAIE_EVENT_DMA_MM2DM_START_TASK_UC,              XAIE_EVENT_DMA_MM2DM_FINISHED_BD_UC,
+	        XAIE_EVENT_DMA_MM2DM_FINISHED_TASK_UC,           XAIE_EVENT_DMA_MM2DM_LOCAL_MEMORY_STARVATION_UC,
+	        XAIE_EVENT_DMA_MM2DM_REMOTE_MEMORY_BACKPRESSURE_UC};
+        eventSets["uc_axis"] = {
+          XAIE_EVENT_CORE_AXIS_MASTER_RUNNING_UC,          XAIE_EVENT_CORE_AXIS_MASTER_STALLED_UC,
+	        XAIE_EVENT_CORE_AXIS_SLAVE_RUNNING_UC,           XAIE_EVENT_CORE_AXIS_SLAVE_STALLED_UC};
+        eventSets["uc_program_flow"] = {
+          XAIE_EVENT_CORE_REG_WRITE_UC,                    XAIE_EVENT_CORE_EXCEPTION_TAKEN_UC,
+	        XAIE_EVENT_CORE_JUMP_TAKEN_UC,                   XAIE_EVENT_CORE_DATA_READ_UC,
+	        XAIE_EVENT_CORE_DATA_WRITE_UC,                   XAIE_EVENT_CORE_STREAM_GET_UC,
+	        XAIE_EVENT_CORE_STREAM_PUT_UC};
+    }
+
     eventSets["mm2s_ports"]             = eventSets["input_ports"];
     eventSets["s2mm_ports"]             = eventSets["output_ports"];
     eventSets["mm2s_s2mm_ports"]        = eventSets["input_output_ports"];

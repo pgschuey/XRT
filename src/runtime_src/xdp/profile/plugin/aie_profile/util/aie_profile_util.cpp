@@ -132,6 +132,25 @@ namespace xdp::aie::profile {
       eventSets["output_stalls"]  = {XAIE_EVENT_DMA_S2MM_0_MEMORY_BACKPRESSURE_PL, 
                                      XAIE_EVENT_DMA_S2MM_0_STALLED_LOCK_PL};
     }
+
+    // Microcontroller sets
+    if (hwGen >= 5) {
+      eventSets["uc_dma_activity"] = {
+          XAIE_EVENT_DMA_DM2MM_FINISHED_BD_UC,             XAIE_EVENT_DMA_DM2MM_LOCAL_MEMORY_STARVATION_UC,
+	        XAIE_EVENT_DMA_DM2MM_REMOTE_MEMORY_BACKPRESSURE_UC,
+          XAIE_EVENT_DMA_MM2DM_FINISHED_BD_UC,             XAIE_EVENT_DMA_MM2DM_LOCAL_MEMORY_STARVATION_UC,
+	        XAIE_EVENT_DMA_MM2DM_REMOTE_MEMORY_BACKPRESSURE_UC};
+        eventSets["uc_axis_throughputs"] = {
+          XAIE_EVENT_CORE_AXIS_MASTER_RUNNING_UC,          XAIE_EVENT_CORE_AXIS_MASTER_STALLED_UC,
+          XAIE_EVENT_CORE_AXIS_MASTER_TLAST_UC,
+	        XAIE_EVENT_CORE_AXIS_SLAVE_RUNNING_UC,           XAIE_EVENT_CORE_AXIS_SLAVE_STALLED_UC,
+          XAIE_EVENT_CORE_AXIS_SLAVE_TLAST_UC};
+        eventSets["uc_core"] = {
+          XAIE_EVENT_CORE_REG_WRITE_UC,                    XAIE_EVENT_CORE_JUMP_TAKEN_UC,
+          XAIE_EVENT_CORE_DATA_READ_UC,                    XAIE_EVENT_CORE_DATA_WRITE_UC,
+          XAIE_EVENT_CORE_STREAM_GET_UC,                   XAIE_EVENT_CORE_STREAM_PUT_UC};
+    }
+
     eventSets["mm2s_throughputs"] = eventSets["input_throughputs"];
     eventSets["s2mm_throughputs"] = eventSets["output_throughputs"];
     eventSets["mm2s_stalls"]      = eventSets["input_stalls"];
