@@ -250,11 +250,12 @@ AIEControlConfigFiletype::getMicrocontrollers(bool useColumn,
     if (getHardwareGeneration() < 5)
         return {};
 
-    // Use specified or all interface tiles
+    // Use specified range or tile 0,0
     // TODO: parse from metadata once available
     uint8_t firstCol = useColumn ? minCol : 0;
-    uint8_t lastCol  = useColumn ? maxCol 
-                     : aie_meta.get("aie_metadata.driver_config.num_columns", 0);
+    //uint8_t lastCol  = useColumn ? maxCol 
+    //                 : aie_meta.get("aie_metadata.driver_config.num_columns", 0);
+    uint8_t lastCol  = useColumn ? maxCol : 0;
 
     std::vector<tile_type> tiles;
 

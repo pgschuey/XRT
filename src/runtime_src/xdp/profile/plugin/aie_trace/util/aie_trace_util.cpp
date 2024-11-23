@@ -185,6 +185,14 @@ namespace xdp::aie::trace {
           XAIE_EVENT_CONFLICT_DM_BANK_14_MEM_TILE,         XAIE_EVENT_CONFLICT_DM_BANK_15_MEM_TILE}}
     };
 
+    if (metadata->getHardwareGen() >= 40) {
+      eventSets["memory_conflicts3"] = {
+          XAIE_EVENT_CONFLICT_DM_BANK_16_MEM_TILE,         XAIE_EVENT_CONFLICT_DM_BANK_17_MEM_TILE,
+          XAIE_EVENT_CONFLICT_DM_BANK_18_MEM_TILE,         XAIE_EVENT_CONFLICT_DM_BANK_19_MEM_TILE,
+          XAIE_EVENT_CONFLICT_DM_BANK_20_MEM_TILE,         XAIE_EVENT_CONFLICT_DM_BANK_21_MEM_TILE,
+          XAIE_EVENT_CONFLICT_DM_BANK_22_MEM_TILE,         XAIE_EVENT_CONFLICT_DM_BANK_23_MEM_TILE};
+    }
+
     eventSets["s2mm_channels"]        = eventSets["input_channels"];
     eventSets["s2mm_channels_stalls"] = eventSets["input_channels_stalls"];
     eventSets["mm2s_channels"]        = eventSets["output_channels"];

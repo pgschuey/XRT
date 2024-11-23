@@ -56,6 +56,7 @@ namespace xdp {
     dma,
     shim,
     mem_tile,
+    uc,
     num_types
   };
 
