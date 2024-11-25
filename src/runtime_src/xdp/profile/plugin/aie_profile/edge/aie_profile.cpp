@@ -663,7 +663,7 @@ namespace xdp {
       auto events = ucTile.second;
 
       // Read all MDM counters for this tile
-      std::vector<uint32_t> counterValues;
+      std::vector<uint64_t> counterValues;
       aie::profile::readMDMCounters(aieDevInst, tile.col, tile.row, counterValues);
 
       double timestamp = xrt_core::time_ns() / 1.0e6;
