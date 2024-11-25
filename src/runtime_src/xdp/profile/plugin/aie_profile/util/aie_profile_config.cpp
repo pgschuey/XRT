@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstring>
 #include <memory>
+#include <set>
 #include "core/common/message.h"
 
 namespace xdp::aie::profile {
@@ -32,13 +33,12 @@ namespace xdp::aie::profile {
    * Configure stream switch ports for monitoring purposes
    * NOTE: Used to monitor streams: trace, interfaces, and memory tiles
    ***************************************************************************/
-  void
-  configStreamSwitchPorts(XAie_DevInst* aieDevInst, const tile_type& tile,
-                          xaiefal::XAieTile& xaieTile, const XAie_LocType loc,
-                          const module_type type, const uint32_t numCounters,
-                          const std::string metricSet, const uint8_t channel0, 
-                          const uint8_t channel1, std::vector<XAie_Events>& startEvents, 
-                          std::vector<XAie_Events>& endEvents)
+  void configStreamSwitchPorts(const tile_type& tile, xaiefal::XAieTile& xaieTile, 
+                               const XAie_LocType loc, const module_type type, 
+                               const uint32_t numCounters, const std::string metricSet, 
+                               const uint8_t channel0, const uint8_t channel1, 
+                               std::vector<XAie_Events>& startEvents,
+                               std::vector<XAie_Events>& endEvents)
   {
     std::map<uint8_t, std::shared_ptr<xaiefal::XAieStreamPortSelect>> switchPortMap;
 
@@ -173,9 +173,9 @@ namespace xdp::aie::profile {
 
     if (metricSet == METRIC_LATENCY && pcIndex==0) {
       bool isSourceTile = true;
-      auto pc = configIntfLatency(xaieModule, xaieModType, xdpModType,
-                               metricSet, startEvent, endEvent, resetEvent,
-                               pcIndex, threshold, retCounterEvent, tile, isSourceTile);
+      auto pc = configInterfaceLatency(xaieModule, xaieModType, xdpModType, metricSet, 
+                                       startEvent, endEvent, resetEvent, pcIndex, 
+                                       threshold, retCounterEvent, tile, isSourceTile);
       std::string srcDestPairKey = metadata->getSrcDestPairKey(tile.col, tile.row);
       if (isSourceTile) {
         adfAPIResourceInfoMap[aie::profile::adfAPI::INTF_TILE_LATENCY][srcDestPairKey].isSourceTile = true; 
@@ -312,11 +312,12 @@ namespace xdp::aie::profile {
    * Configure interface tile counter for latency
    ***************************************************************************/
   std::shared_ptr<xaiefal::XAiePerfCounter>
-  configIntfLatency(xaiefal::XAieMod& xaieModule, XAie_ModuleType& xaieModType, 
-                    const module_type xdpModType, const std::string& metricSet, 
-                    XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent, 
-                    int pcIndex, size_t threshold, XAie_Events& retCounterEvent,
-                    const tile_type& tile, bool& isSource)
+  configInterfaceLatency(XAie_DevInst* aieDevInst, xaiefal::XAieMod& xaieModule, 
+                         XAie_ModuleType& xaieModType, const module_type xdpModType, 
+                         const std::string& metricSet, XAie_Events startEvent, 
+                         XAie_Events endEvent, XAie_Events resetEvent, int pcIndex, 
+                         size_t threshold, XAie_Events& retCounterEvent,
+                         const tile_type& tile, bool& isSource)
   {
    // Request combo event from xaie module
     auto pc = xaieModule.perfCounter();
@@ -447,9 +448,10 @@ namespace xdp::aie::profile {
    * Configure the broadcasting of provided module and event
    * (Brodcasted from AIE Tile core module)
    ***************************************************************************/
-  void configEventBroadcast(const XAie_LocType loc, const module_type xdpModType,
-                            const std::string metricSet, const XAie_ModuleType xaieModType,
-                            const XAie_Events bcEvent, XAie_Events& bcChannelEvent)
+  void configEventBroadcast(XAie_DevInst* aieDevInst, const XAie_LocType loc, 
+                            const module_type xdpModType, const std::string metricSet, 
+                            const XAie_ModuleType xaieModType, const XAie_Events bcEvent, 
+                            XAie_Events& bcChannelEvent)
   {
     auto bcPair = aie::profile::getPreferredPLBroadcastChannel();
 
@@ -534,10 +536,8 @@ namespace xdp::aie::profile {
   /****************************************************************************
    * Configure the selection index to monitor channel number in memory tiles
    ***************************************************************************/
-  void configEventSelections(XAie_DevInst* aieDevInst,
-                             const XAie_LocType loc,
-                             const module_type type,
-                             const std::string metricSet,
+  void configEventSelections(XAie_DevInst* aieDevInst, const XAie_LocType loc,
+                             const module_type type, const std::string metricSet,
                              const uint8_t channel)
   {
     if (type != module_type::mem_tile)

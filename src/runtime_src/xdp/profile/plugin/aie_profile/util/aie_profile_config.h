@@ -18,6 +18,7 @@
 #define AIE_PROFILE_CONFIG_DOT_H
 
 #include <cstdint>
+#include "xaiefal/xaiefal.hpp"
 #include "xdp/profile/database/static_info/aie_constructs.h"
 
 extern "C" {
@@ -29,7 +30,6 @@ namespace xdp::aie::profile {
 
    /**
    * @brief Configure stream switch ports for monitoring purposes
-   * @param aieDevInst AIE device instance
    * @param tile tile type
    * @param xaieTile tile instance in FAL/resource manager
    * @param loc tile location
@@ -41,11 +41,11 @@ namespace xdp::aie::profile {
    * @param startEvents vector of start events from metric set
    * @param endEvents vector of end events from metric set
    */
-   void configStreamSwitchPorts(XAie_DevInst* aieDevInst, const tile_type& tile,
-                                xaiefal::XAieTile& xaieTile, const XAie_LocType loc,
-                                const module_type type, const uint32_t numCounters,
-                                const std::string metricSet, const uint8_t channel0,
-                                const uint8_t channel1, std::vector<XAie_Events>& startEvents,
+   void configStreamSwitchPorts(const tile_type& tile, xaiefal::XAieTile& xaieTile, 
+                                const XAie_LocType loc, const module_type type, 
+                                const uint32_t numCounters, const std::string metricSet, 
+                                const uint8_t channel0, const uint8_t channel1, 
+                                std::vector<XAie_Events>& startEvents,
                                 std::vector<XAie_Events>& endEvents);
 
   /**
@@ -107,11 +107,12 @@ namespace xdp::aie::profile {
    * @return shared pointer to performance counter used by FAL
    */
   std::shared_ptr<xaiefal::XAiePerfCounter>
-  configIntfLatency(xaiefal::XAieMod& xaieModule, XAie_ModuleType& xaieModType, 
-                    const module_type xdpModType, const std::string& metricSet, 
-                    XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent, 
-                    int pcIndex, size_t threshold, XAie_Events& retCounterEvent,
-                    const tile_type& tile, bool& isSource);
+  configInterfaceLatency(XAie_DevInst* aieDevInst, xaiefal::XAieMod& xaieModule, 
+                         XAie_ModuleType& xaieModType, const module_type xdpModType, 
+                         const std::string& metricSet, XAie_Events startEvent, 
+                         XAie_Events endEvent, XAie_Events resetEvent, int pcIndex, 
+                         size_t threshold, XAie_Events& retCounterEvent,
+                         const tile_type& tile, bool& isSource);
 
    /**
    * @brief Configure individual AIE events for metric sets related to Profile APIs
@@ -143,6 +144,7 @@ namespace xdp::aie::profile {
    /**
    * @brief Configure the broadcasting of provided module and event
    *        (Brodcasted from AIE Tile core module)
+   * @param aieDevInst AIE device instance
    * @param loc tile location
    * @param xdpModType xdp module type
    * @param metricSet metric set to be configured
@@ -150,9 +152,10 @@ namespace xdp::aie::profile {
    * @param bcEvent broadcast event
    * @param bcChannelEvent broadcast channel event
    */
-   void configEventBroadcast(const XAie_LocType loc, const module_type xdpModType,
-                             const std::string metricSet, const XAie_ModuleType xaieModType,
-                             const XAie_Events bcEvent, XAie_Events& bcChannelEvent);
+   void configEventBroadcast(XAie_DevInst* aieDevInst, const XAie_LocType loc, 
+                            const module_type xdpModType, const std::string metricSet, 
+                            const XAie_ModuleType xaieModType, const XAie_Events bcEvent, 
+                            XAie_Events& bcChannelEvent);
 
    /**
    * @brief Configure the individual AIE events for metric sets that use group events
@@ -177,10 +180,8 @@ namespace xdp::aie::profile {
    * @param metricSet metric set to be configured
    * @param channel channel to be configured
    */
-  void configEventSelections(XAie_DevInst* aieDevInst,
-                             const XAie_LocType loc,
-                             const module_type type,
-                             const std::string metricSet,
+  void configEventSelections(XAie_DevInst* aieDevInst, const XAie_LocType loc,
+                             const module_type type, const std::string metricSet,
                              const uint8_t channel);
 
   /**

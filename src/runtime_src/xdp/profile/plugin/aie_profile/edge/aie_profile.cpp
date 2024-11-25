@@ -429,7 +429,7 @@ namespace xdp {
         aie::profile::configEventSelections(aieDevInst, loc, type, metricSet, channel0);
         // TBD : Placeholder to configure shim tile with required profile counters.
 
-        aie::profile::configStreamSwitchPorts(aieDevInst, tileMetric.first, xaieTile, loc, type, 
+        aie::profile::configStreamSwitchPorts(tileMetric.first, xaieTile, loc, type, 
             numFreeCtrSS, metricSet, channel0, channel1, startEvents, endEvents);
        
         // Identify the profiling API metric sets and configure graph events
