@@ -436,7 +436,7 @@ namespace xdp {
         if (metadata->getUseGraphIterator() && !graphItrBroadcastConfigDone) {
           XAie_Events bcEvent = XAIE_EVENT_NONE_CORE;
           bool status = aie::profile::configGraphIteratorAndBroadcast(aieDevInst, aieDevice, 
-              metadata, aieModule, loc, mod, type, metricSet, bcEvent);
+              metadata, xaieModule, loc, mod, type, metricSet, bcEvent);
           if (status) {
             graphIteratorBrodcastChannelEvent = bcEvent;
             graphItrBroadcastConfigDone = true;
