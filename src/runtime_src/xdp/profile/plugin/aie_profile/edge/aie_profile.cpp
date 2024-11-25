@@ -88,7 +88,7 @@ namespace xdp {
     shimEndEvents = shimStartEvents;
     shimEndEvents[METRIC_BYTE_COUNT] = {XAIE_EVENT_PORT_RUNNING_0_PL, XAIE_EVENT_PERF_CNT_0_PL};
 
-    memTileStartEvents = aie::profile::getMemoryTileEventSets();
+    memTileStartEvents = aie::profile::getMemoryTileEventSets(hwGen);
     memTileEndEvents = memTileStartEvents;
 
     microcontrollerEvents = aie::profile::getMicrocontrollerEventSets(hwGen);
