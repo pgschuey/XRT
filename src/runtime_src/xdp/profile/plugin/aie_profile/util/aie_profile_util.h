@@ -100,13 +100,6 @@ namespace xdp::aie::profile {
   std::map<std::string, std::vector<uint32_t>> getMicrocontrollerEventSets(const int hwGen);
 
   /**
-   * @brief   Get metric sets for debug modules in microcontrollers
-   * @return  Map of microcontroller metric set names with vectors of event IDs
-   */
-  //std::map<std::string, std::vector<XAie_Events>> getMicrocontrollerEventSets();
-  std::map<std::string, std::vector<uint32_t>> getMicrocontrollerEventSets();
-
-  /**
    * @brief  Modify configured events
    * @param type module type 
    * @param subtype plio/gmio type
