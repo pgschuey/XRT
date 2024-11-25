@@ -23,7 +23,6 @@
 #include <cmath>
 #include <cstring>
 #include <memory>
-#include <set>
 #include "core/common/message.h"
 
 namespace xdp::aie::profile {
@@ -371,10 +370,12 @@ namespace xdp::aie::profile {
    * Configure individual AIE events for metric sets related to Profile APIs
    ***************************************************************************/
    bool 
-   configGraphIteratorAndBroadcast(xaiefal::XAieMod core, XAie_LocType loc, 
+   configGraphIteratorAndBroadcast(XAie_DevInst* aieDevInst, xaiefal::XAieDev* aieDevice,
+                                   std::shared_ptr<AieProfileMetadata> metadata,
+                                   xaiefal::XAieMod core, XAie_LocType loc, 
                                    const XAie_ModuleType xaieModType,
                                    const module_type xdpModType, const std::string metricSet,
-                                   uint32_t iterCount, XAie_Events& bcEvent)
+                                   XAie_Events& bcEvent)
   {
     bool rc = false;
     if (!aie::profile::metricSupportsGraphIterator(metricSet))
@@ -392,10 +393,12 @@ namespace xdp::aie::profile {
       // Use the first available core tile to configure the broadcasting
       uint8_t col = aieCoreTilesVec.begin()->col;
       uint8_t row = aieCoreTilesVec.begin()->row;
-      auto& xaieTile   = aieDevice->tile(col, row);
+      auto& xaieTile = aieDevice->tile(col, row);
       core = xaieTile.core();
       loc = XAie_TileLoc(col, row);
     }
+
+    auto iterCount = metadata->getIterationCount();
 
     std::stringstream msg;
     msg << "Configuring AIE profile start_to_bytes_transferred to start on iteration " << iterCount
@@ -408,8 +411,8 @@ namespace xdp::aie::profile {
 
     // Step 2: Configure the brodcast of the returned counter event
     XAie_Events bcChannelEvent;
-    configEventBroadcast(loc, module_type::core, metricSet, XAIE_CORE_MOD,
-                         counterEvent, bcChannelEvent);
+    configEventBroadcast(aieDevInst, aieDevice, metadata, loc, module_type::core, 
+                         metricSet, XAIE_CORE_MOD, counterEvent, bcChannelEvent);
 
     // Store the brodcasted channel event for later use
     bcEvent = bcChannelEvent;
@@ -448,24 +451,22 @@ namespace xdp::aie::profile {
    * Configure the broadcasting of provided module and event
    * (Brodcasted from AIE Tile core module)
    ***************************************************************************/
-  void configEventBroadcast(XAie_DevInst* aieDevInst, const XAie_LocType loc, 
-                            const module_type xdpModType, const std::string metricSet, 
-                            const XAie_ModuleType xaieModType, const XAie_Events bcEvent, 
-                            XAie_Events& bcChannelEvent)
+  void configEventBroadcast(XAie_DevInst* aieDevInst, xaiefal::XAieDev* aieDevice,
+                            std::shared_ptr<AieProfileMetadata> metadata,
+                            const XAie_LocType loc, const module_type xdpModType, 
+                            const std::string metricSet, const XAie_ModuleType xaieModType, 
+                            const XAie_Events bcEvent, XAie_Events& bcChannelEvent)
   {
     auto bcPair = aie::profile::getPreferredPLBroadcastChannel();
 
     std::vector<XAie_LocType> vL;
     AieRC RC = AieRC::XAIE_OK;
 
-    // vL.push_back(loc);
-    // aie::profile::getAllInterfaceTileLocs(vL);
-    std::vector<tile_type> allIntfTiles = metadata->getInterfaceTiles("all", "all", METRIC_BYTE_COUNT);
-    std::set<tile_type> allIntfTilesSet(allIntfTiles.begin(), allIntfTiles.end());
-    if (allIntfTilesSet.empty())
+    auto allIntfTiles = metadata->getInterfaceTiles("all", "all", METRIC_BYTE_COUNT);
+    if (allIntfTiles.empty())
       return;
 
-    for (auto &tile : allIntfTilesSet) {
+    for (auto &tile : allIntfTiles) {
       vL.push_back(XAie_TileLoc(tile.col, tile.row));
     }
 

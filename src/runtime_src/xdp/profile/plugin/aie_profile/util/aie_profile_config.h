@@ -116,20 +116,24 @@ namespace xdp::aie::profile {
 
    /**
    * @brief Configure individual AIE events for metric sets related to Profile APIs
+   * @param aieDevInst AIE device instance
+   * @param aieDevice AIE device
+   * @param metadata profile metadata
    * @param core module type used by FAL
    * @param loc tile location
    * @param xaieModType AIE driver module type
    * @param xdpModType xdp module type
    * @param metricSet metric set to be configured
-   * @param iterCount iteration count
    * @param bcEvent broadcast event
    * @return success of configuration
    */
    bool 
-   configGraphIteratorAndBroadcast(xaiefal::XAieMod core, XAie_LocType loc, 
+   configGraphIteratorAndBroadcast(XAie_DevInst* aieDevInst, xaiefal::XAieDev* aieDevice,
+                                   std::shared_ptr<AieProfileMetadata> metadata,
+                                   xaiefal::XAieMod core, XAie_LocType loc, 
                                    const XAie_ModuleType xaieModType,
                                    const module_type xdpModType, const std::string metricSet,
-                                   uint32_t iterCount, XAie_Events& bcEvent);
+                                   XAie_Events& bcEvent);
 
    /**
    * @brief Configure AIE Core module start on graph iteration count threshold
@@ -145,6 +149,8 @@ namespace xdp::aie::profile {
    * @brief Configure the broadcasting of provided module and event
    *        (Brodcasted from AIE Tile core module)
    * @param aieDevInst AIE device instance
+   * @param aieDevice AIE device
+   * @param metadata profile metadata
    * @param loc tile location
    * @param xdpModType xdp module type
    * @param metricSet metric set to be configured
@@ -152,10 +158,11 @@ namespace xdp::aie::profile {
    * @param bcEvent broadcast event
    * @param bcChannelEvent broadcast channel event
    */
-   void configEventBroadcast(XAie_DevInst* aieDevInst, const XAie_LocType loc, 
-                            const module_type xdpModType, const std::string metricSet, 
-                            const XAie_ModuleType xaieModType, const XAie_Events bcEvent, 
-                            XAie_Events& bcChannelEvent);
+   void configEventBroadcast(XAie_DevInst* aieDevInst, xaiefal::XAieDev* aieDevice,
+                             std::shared_ptr<AieProfileMetadata> metadata,
+                             const XAie_LocType loc, const module_type xdpModType, 
+                             const std::string metricSet, const XAie_ModuleType xaieModType, 
+                             const XAie_Events bcEvent, XAie_Events& bcChannelEvent);
 
    /**
    * @brief Configure the individual AIE events for metric sets that use group events

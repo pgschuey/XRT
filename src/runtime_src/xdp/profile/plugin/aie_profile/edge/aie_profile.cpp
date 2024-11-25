@@ -435,8 +435,8 @@ namespace xdp {
         // Identify the profiling API metric sets and configure graph events
         if (metadata->getUseGraphIterator() && !graphItrBroadcastConfigDone) {
           XAie_Events bcEvent = XAIE_EVENT_NONE_CORE;
-          bool status = aie::profile::configGraphIteratorAndBroadcast(xaieModule,
-              loc, mod, type, metricSet, metadata->getIterationCount(), bcEvent);
+          bool status = aie::profile::configGraphIteratorAndBroadcast(aieDevInst, aieDevice, 
+              metadata, aieModule, loc, mod, type, metricSet, bcEvent);
           if (status) {
             graphIteratorBrodcastChannelEvent = bcEvent;
             graphItrBroadcastConfigDone = true;
