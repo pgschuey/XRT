@@ -656,22 +656,28 @@ namespace xdp {
       db->getDynamicInfo().addAIESample(index, timestamp, values);
     }
 
-    // Read and record MDM counters (if available)
+    // Read and record MicroBlaze Debug Module (MDM) counters (if available)
     // NOTE: all MDM counters in a given tile are sampled in same read sequence
     for (auto& ucTile : microcontrollerTileEvents) {
-      // Get timestamp in milliseconds
-      double timestamp = xrt_core::time_ns() / 1.0e6;
-      std::vector<uint32_t> counterValues;
-      aie::profile::readMDMCounters(aieDevInst, col, row, counterValues);
+      auto tile = ucTile.first;
+      auto events = ucTile.second;
 
+      // Read all MDM counters for this tile
+      std::vector<uint32_t> counterValues;
+      aie::profile::readMDMCounters(aieDevInst, tile.col, tile.row, counterValues);
+
+      double timestamp = xrt_core::time_ns() / 1.0e6;
+
+      // Report all counters
+      // NOTE: row and reset are 0; start and end events are the same
       for (uint64_t c=0; c < counterValues.size(); c++) {
         std::vector<uint64_t> values;
-        values.push_back(ucTile.first.col);
+        values.push_back(tile.col);
         values.push_back(0);
-        values.push_back(ucTile.second.at(c));
-        values.push_back(ucTile.second.at(c));
+        values.push_back(events.at(c));
+        values.push_back(events.at(c));
         values.push_back(0);
-        values.push_back(counterValues.at(c))
+        values.push_back(counterValues.at(c));
       
         db->getDynamicInfo().addAIESample(index, timestamp, values);
       }

@@ -566,8 +566,6 @@ namespace xdp::aie::profile {
     return bcPair;
   }
 
-
-
   /****************************************************************************
    * Convert user specified bytes to beats for provided metric set
    ***************************************************************************/
