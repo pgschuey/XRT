@@ -201,7 +201,7 @@ namespace xdp::aie::profile {
    * @param values vector of values from counters
    */
   void readMDMCounters(XAie_DevInst* aieDevInst, uint8_t col, uint8_t row, 
-                       const std::vector<uint64_t>& values);
+                       std::vector<uint64_t>& values);
 
 }  // namespace xdp::aie::profile
 

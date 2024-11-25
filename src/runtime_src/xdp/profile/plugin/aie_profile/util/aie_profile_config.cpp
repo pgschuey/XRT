@@ -577,8 +577,8 @@ namespace xdp::aie::profile {
   /****************************************************************************
    * Read counters in Microblaze Debug Module (MDM)
    ***************************************************************************/
-  void configMDMCounters(XAie_DevInst* aieDevInst, uint8_t col, uint8_t row, 
-                         const std::vector<uint64_t>& values)
+  void readMDMCounters(XAie_DevInst* aieDevInst, uint8_t col, uint8_t row, 
+                       std::vector<uint64_t>& values)
   {
     auto tileOffset = XAie_GetTileAddr(aieDevInst, row, col);
 
@@ -591,7 +591,7 @@ namespace xdp::aie::profile {
     uint32_t numCounters = UC_NUM_EVENT_COUNTERS + UC_NUM_LATENCY_COUNTERS;
     for (uint32_t c=0; c < numCounters; ++c) {
       uint32_t val;
-      XAie_Read32(aieDevInst, tileOffset + UC_MDM_PCSR, val);
+      XAie_Read32(aieDevInst, tileOffset + UC_MDM_PCSR, &val);
       bool overflow = (((val >> UC_MDM_PCSR_OVERFLOW_BIT) & 0x1) == 1);
       overflows.push_back(overflow);
 
@@ -604,9 +604,9 @@ namespace xdp::aie::profile {
     // 3. Read values of event counters
     for (uint32_t c=0; c < UC_NUM_EVENT_COUNTERS; ++c) {
       uint32_t val;
-      XAie_Read32(aieDevInst, tileOffset + UC_MDM_PCDRR, val);
-      val = (overflows.at(c)) ? (val + (1 << 32)) : val;
-      values.push_back(val);
+      XAie_Read32(aieDevInst, tileOffset + UC_MDM_PCDRR, &val);
+      uint64_t val2 = (overflows.at(c)) ? (val + (1 << 32)) : val;
+      values.push_back(val2);
     }
 
     // 4. Read four values from latency counter
@@ -618,9 +618,9 @@ namespace xdp::aie::profile {
     std::vector<uint32_t> latencyValues;
     for (uint32_t c=0; c < UC_MDM_PCDRR_LATENCY_READS; ++c) {
       uint32_t val;
-      XAie_Read32(aieDevInst, tileOffset + UC_MDM_PCDRR, val);
-      val = (overflows.at(UC_NUM_EVENT_COUNTERS)) ? (val + (1 << 32)) : val;
-      latencyValues.push_back(val);
+      XAie_Read32(aieDevInst, tileOffset + UC_MDM_PCDRR, &val);
+      uint64_t val2 = (overflows.at(UC_NUM_EVENT_COUNTERS)) ? (val + (1 << 32)) : val;
+      latencyValues.push_back(val2);
     }
 
     // 5. Calculate average latency
