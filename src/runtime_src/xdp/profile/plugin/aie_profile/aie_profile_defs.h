@@ -43,6 +43,7 @@ constexpr uint32_t GROUP_SHIM_MM2S0_STALL_MASK      = 0x00500000;
 constexpr uint32_t GROUP_SHIM_MM2S1_STALL_MASK      = 0x00A00000;
 
 // Microblaze debug module (MDM) register offsets and definitions
+constexpr uint64_t OVERFLOW_32BIT                   = 1 << 32;
 constexpr uint32_t UC_MDM_PCCTRLR                   = 0x000b5440;
 constexpr uint32_t UC_MDM_PCCMDR                    = 0x000b5480;
 constexpr uint32_t UC_MDM_PCSR                      = 0x000b54c0;

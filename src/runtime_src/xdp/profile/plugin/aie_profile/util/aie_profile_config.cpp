@@ -605,7 +605,7 @@ namespace xdp::aie::profile {
     for (uint32_t c=0; c < UC_NUM_EVENT_COUNTERS; ++c) {
       uint32_t val;
       XAie_Read32(aieDevInst, tileOffset + UC_MDM_PCDRR, &val);
-      uint64_t val2 = (overflows.at(c)) ? (val + (1 << 32)) : val;
+      uint64_t val2 = (overflows.at(c)) ? (val + OVERFLOW_32BIT) : val;
       values.push_back(val2);
     }
 
@@ -619,7 +619,7 @@ namespace xdp::aie::profile {
     for (uint32_t c=0; c < UC_MDM_PCDRR_LATENCY_READS; ++c) {
       uint32_t val;
       XAie_Read32(aieDevInst, tileOffset + UC_MDM_PCDRR, &val);
-      uint64_t val2 = (overflows.at(UC_NUM_EVENT_COUNTERS)) ? (val + (1 << 32)) : val;
+      uint64_t val2 = (overflows.at(UC_NUM_EVENT_COUNTERS)) ? (val + OVERFLOW_32BIT) : val;
       latencyValues.push_back(val2);
     }
 
