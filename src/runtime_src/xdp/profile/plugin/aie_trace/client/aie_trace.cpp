@@ -31,6 +31,7 @@
 #include "xdp/profile/device/pl_device_intf.h"
 #include "xdp/profile/device/tracedefs.h"
 #include "xdp/profile/plugin/aie_trace/aie_trace_metadata.h"
+#include "xdp/profile/plugin/aie_trace/util/aie_trace_util.h"
 
 namespace xdp {
   using severity_level = xrt_core::message::severity_level;

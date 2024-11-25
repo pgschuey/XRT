@@ -185,13 +185,16 @@ namespace xdp::aie::trace {
           XAIE_EVENT_CONFLICT_DM_BANK_14_MEM_TILE,         XAIE_EVENT_CONFLICT_DM_BANK_15_MEM_TILE}}
     };
 
-    if (metadata->getHardwareGen() >= 40) {
+#if 0
+    // Banks 16-23 are only defined for AIE4
+    if (hwGen >= 40) {
       eventSets["memory_conflicts3"] = {
           XAIE_EVENT_CONFLICT_DM_BANK_16_MEM_TILE,         XAIE_EVENT_CONFLICT_DM_BANK_17_MEM_TILE,
           XAIE_EVENT_CONFLICT_DM_BANK_18_MEM_TILE,         XAIE_EVENT_CONFLICT_DM_BANK_19_MEM_TILE,
           XAIE_EVENT_CONFLICT_DM_BANK_20_MEM_TILE,         XAIE_EVENT_CONFLICT_DM_BANK_21_MEM_TILE,
           XAIE_EVENT_CONFLICT_DM_BANK_22_MEM_TILE,         XAIE_EVENT_CONFLICT_DM_BANK_23_MEM_TILE};
     }
+#endif
 
     eventSets["s2mm_channels"]        = eventSets["input_channels"];
     eventSets["s2mm_channels_stalls"] = eventSets["input_channels_stalls"];
@@ -551,52 +554,6 @@ namespace xdp::aie::trace {
     }
   }
 
-  /****************************************************************************
-   * Print out resource usage statistics for a given tile
-   ***************************************************************************/
-  void printTileStats(xaiefal::XAieDev* aieDevice, const tile_type& tile)
-  {
-    if (xrt_core::config::get_verbosity() < static_cast<uint32_t>(severity_level::info))
-      return;
-
-    auto col = tile.col;
-    auto row = tile.row;
-    auto loc = XAie_TileLoc(col, row);
-    std::stringstream msg;
-
-    const std::string groups[3] = {
-      XAIEDEV_DEFAULT_GROUP_GENERIC,
-      XAIEDEV_DEFAULT_GROUP_STATIC, 
-      XAIEDEV_DEFAULT_GROUP_AVAIL
-    };
-
-    msg << "Resource usage stats for Tile : (" << col << "," << row << ") Module : Core" << std::endl;
-    for (auto& g : groups) {
-      auto stats = aieDevice->getRscStat(g);
-      auto pc = stats.getNumRsc(loc, XAIE_CORE_MOD, xaiefal::XAIE_PERFCOUNT);
-      auto ts = stats.getNumRsc(loc, XAIE_CORE_MOD, xaiefal::XAIE_TRACEEVENT);
-      auto bc = stats.getNumRsc(loc, XAIE_CORE_MOD, xaiefal::XAIE_BROADCAST);
-      msg << "Resource Group : " << std::left << std::setw(10) << g << " "
-          << "Performance Counters : " << pc << " "
-          << "Trace Slots : " << ts << " "
-          << "Broadcast Channels : " << bc << " " 
-          << std::endl;
-    }
-    msg << "Resource usage stats for Tile : (" << col << "," << row << ") Module : Memory" << std::endl;
-    for (auto& g : groups) {
-      auto stats = aieDevice->getRscStat(g);
-      auto pc = stats.getNumRsc(loc, XAIE_MEM_MOD, xaiefal::XAIE_PERFCOUNT);
-      auto ts = stats.getNumRsc(loc, XAIE_MEM_MOD, xaiefal::XAIE_TRACEEVENT);
-      auto bc = stats.getNumRsc(loc, XAIE_MEM_MOD, xaiefal::XAIE_BROADCAST);
-      msg << "Resource Group : " << std::left << std::setw(10) << g << " "
-          << "Performance Counters : " << pc << " "
-          << "Trace Slots : " << ts << " "
-          << "Broadcast Channels : " << bc << " " 
-          << std::endl;
-    }
-    xrt_core::message::send(severity_level::info, "XRT", msg.str());
-  }
-  
   /****************************************************************************
    * Print out reserved trace events
    ***************************************************************************/
