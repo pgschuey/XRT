@@ -91,7 +91,7 @@ namespace xdp {
     memTileStartEvents = aie::profile::getMemoryTileEventSets();
     memTileEndEvents = memTileStartEvents;
 
-    microcontrollerEvents = aie::profile::getMicrocontrollerEventSets();
+    microcontrollerEvents = aie::profile::getMicrocontrollerEventSets(hwGen);
   }
 
   bool AieProfile_EdgeImpl::checkAieDevice(const uint64_t deviceId, void* handle)
