@@ -166,7 +166,8 @@ namespace xdp::aie::profile {
                            const module_type xdpModType, const std::string& metricSet, 
                            XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent,
                            int pcIndex, size_t threshold, XAie_Events& retCounterEvent, const tile_type& tile, 
-                           std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency)
+                           std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency,
+                           std::map<adfAPI, std::map<std::string, adfAPIResourceInfo>>& adfAPIResourceInfoMap)
   {
     if (xdpModType != module_type::shim)
       return nullptr;
@@ -372,7 +373,7 @@ namespace xdp::aie::profile {
     
     if (adfAPIBroadcastEventsMap.find(srcTile) == adfAPIBroadcastEventsMap.end()) {
       // auto bcPair = aie::profile::getPreferredPLBroadcastChannel();
-      auto bcPair = getPLBroadcastChannel(srcTile, bcResourcesLatency);
+      auto bcPair = getPLBroadcastChannel(srcTile, metadata, bcResourcesLatency);
       if (bcPair.first == -1 || bcPair.second == XAIE_EVENT_NONE_CORE) {
         return {-1, XAIE_EVENT_NONE_CORE};
       }
@@ -425,7 +426,7 @@ namespace xdp::aie::profile {
     // uint8_t broadcastId  = 10;
 
     if (isSource) {
-      auto bc_pair = setupBroadcastChannel(tile, metadata);
+      auto bc_pair = setupBroadcastChannel(tile, metadata, bcResourcesLatency);
       if (bc_pair.first == -1)
         return nullptr;
 

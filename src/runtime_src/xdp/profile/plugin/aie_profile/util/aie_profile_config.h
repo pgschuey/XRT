@@ -65,6 +65,7 @@ namespace xdp::aie::profile {
    * @param retCounterEvent counter event
    * @param tile tile type
    * @param bcResourcesLatency vector of broadcast channels for latency calculations
+   * @param adfAPIResourceInfoMap resource information map
    * @return shared pointer to performance counter used by FAL
    */
   std::shared_ptr<xaiefal::XAiePerfCounter>
@@ -73,7 +74,8 @@ namespace xdp::aie::profile {
                            const module_type xdpModType, const std::string& metricSet, 
                            XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent,
                            int pcIndex, size_t threshold, XAie_Events& retCounterEvent, const tile_type& tile,
-                           std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency);
+                           std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency,
+                           std::map<adfAPI, std::map<std::string, adfAPIResourceInfo>>& adfAPIResourceInfoMap);
 
    /**
    * @brief Configure performance counter using combo event 3 FSM
