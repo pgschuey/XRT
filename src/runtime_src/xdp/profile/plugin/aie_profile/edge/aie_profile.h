@@ -65,9 +65,6 @@ namespace xdp {
                          XAie_ModuleType& xaieModType, module_type xdpModType, 
                          const std::string& metricSet,
                          XAie_Events startEvent, XAie_Events endEvent);
-  
-      std::pair<int, XAie_Events>
-      setupBroadcastChannel(const tile_type& currTileLoc);
 
       inline std::shared_ptr<xaiefal::XAiePerfCounter>
       startCounter(std::shared_ptr<xaiefal::XAiePerfCounter>& pc,
@@ -85,11 +82,7 @@ namespace xdp {
         return pc;
       }
 
-      std::pair<int, XAie_Events>
-      getPLBroadcastChannel(const tile_type& srcTile);
-
-      void
-      displayAdfAPIResults();
+      void displayAdfAPIResults();
 
     private:
       XAie_DevInst*     aieDevInst = nullptr;
@@ -117,9 +110,6 @@ namespace xdp {
       XAie_Events latencyUserBrodcastChannelEvent = XAIE_EVENT_NONE_CORE;
 
       std::map<aie::profile::adfAPI, std::map<std::string, aie::profile::adfAPIResourceInfo>> adfAPIResourceInfoMap;
-      
-      // This stores the map of location of tile and configured broadcast channel event
-      std::map<tile_type, std::pair<int, XAie_Events>> adfAPIBroadcastEventsMap;
 
       std::vector<std::shared_ptr<xaiefal::XAieBroadcast>> bcResourcesBytesTx;
       std::vector<std::shared_ptr<xaiefal::XAieBroadcast>> bcResourcesLatency;

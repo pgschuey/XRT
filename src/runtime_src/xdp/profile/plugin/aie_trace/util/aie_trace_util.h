@@ -20,6 +20,11 @@
 #include <cstdint>
 #include "xdp/profile/database/static_info/aie_constructs.h"
 
+extern "C" {
+#include <xaiengine.h>
+#include <xaiengine/xaiegbl_params.h>
+}
+
 namespace xdp::aie::trace {
   /**
    * @brief   Get metric sets for core modules

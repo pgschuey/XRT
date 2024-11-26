@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include "xaiefal/xaiefal.hpp"
+#include "xdp/profile/plugin/aie_profile/aie_profile_metadata.h"
 #include "xdp/profile/database/static_info/aie_constructs.h"
 
 extern "C" {
@@ -50,6 +51,8 @@ namespace xdp::aie::profile {
 
   /**
    * @brief Configure performance counter for profile API
+   * @param aieDevInst AIE device instance
+   * @param metadata profile metadata
    * @param xaieModule module type used by FAL
    * @param xaieModType AIE driver module type
    * @param xdpModType xdp module type
@@ -64,7 +67,8 @@ namespace xdp::aie::profile {
    * @return shared pointer to performance counter used by FAL
    */
   std::shared_ptr<xaiefal::XAiePerfCounter>
-  configProfileAPICounters(xaiefal::XAieMod& xaieModule, XAie_ModuleType& xaieModType, 
+  configProfileAPICounters(XAie_DevInst* aieDevInst, std::shared_ptr<AieProfileMetadata> metadata,
+                           xaiefal::XAieMod& xaieModule, XAie_ModuleType& xaieModType, 
                            const module_type xdpModType, const std::string& metricSet, 
                            XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent,
                            int pcIndex, size_t threshold, XAie_Events& retCounterEvent,
@@ -89,9 +93,28 @@ namespace xdp::aie::profile {
                             const module_type xdpModType, const std::string& metricSet, 
                             XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent,
                             int pcIndex, size_t threshold, XAie_Events& retCounterEvent);
+  /**
+   * @brief Get broadcast channel in interface tile
+   * @param srcTile source tile location
+   * @param metadata profile metadata
+   * @return channel and event
+   */
+  std::pair<int, XAie_Events>
+  getPLBroadcastChannel(const tile_type& srcTile, std::shared_ptr<AieProfileMetadata> metadata);
+
+  /**
+   * @brief Setup broadcast channel
+   * @param currTileLoc current tile location
+   * @param metadata profile metadata
+   * @return channel and event
+   */
+  std::pair<int, XAie_Events>
+  setupBroadcastChannel(const tile_type& currTileLoc, std::shared_ptr<AieProfileMetadata> metadata);
 
   /**
    * @brief Configure interface tile counter for latency
+   * @param aieDevInst AIE device instance
+   * @param metadata profile metadata
    * @param xaieModule module type used by FAL
    * @param xaieModType AIE driver module type
    * @param xdpModType xdp module type
@@ -107,11 +130,11 @@ namespace xdp::aie::profile {
    * @return shared pointer to performance counter used by FAL
    */
   std::shared_ptr<xaiefal::XAiePerfCounter>
-  configInterfaceLatency(XAie_DevInst* aieDevInst, xaiefal::XAieMod& xaieModule, 
-                         XAie_ModuleType& xaieModType, const module_type xdpModType, 
-                         const std::string& metricSet, XAie_Events startEvent, 
-                         XAie_Events endEvent, XAie_Events resetEvent, int pcIndex, 
-                         size_t threshold, XAie_Events& retCounterEvent,
+  configInterfaceLatency(XAie_DevInst* aieDevInst, std::shared_ptr<AieProfileMetadata> metadata,
+                         xaiefal::XAieMod& xaieModule, XAie_ModuleType& xaieModType, 
+                         const module_type xdpModType, const std::string& metricSet, 
+                         XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent, 
+                         int pcIndex, size_t threshold, XAie_Events& retCounterEvent,
                          const tile_type& tile, bool& isSource);
 
    /**

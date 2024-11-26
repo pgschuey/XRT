@@ -161,7 +161,8 @@ namespace xdp::aie::profile {
    * Configure performance counter for profile API
    ***************************************************************************/
   std::shared_ptr<xaiefal::XAiePerfCounter>
-  configProfileAPICounters(xaiefal::XAieMod& xaieModule, XAie_ModuleType& xaieModType, 
+  configProfileAPICounters(XAie_DevInst* aieDevInst, std::shared_ptr<AieProfileMetadata> metadata,
+                           xaiefal::XAieMod& xaieModule, XAie_ModuleType& xaieModType, 
                            const module_type xdpModType, const std::string& metricSet, 
                            XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent,
                            int pcIndex, size_t threshold, XAie_Events& retCounterEvent,
@@ -172,8 +173,8 @@ namespace xdp::aie::profile {
 
     if (metricSet == METRIC_LATENCY && pcIndex==0) {
       bool isSourceTile = true;
-      auto pc = configInterfaceLatency(xaieModule, xaieModType, xdpModType, metricSet, 
-                                       startEvent, endEvent, resetEvent, pcIndex, 
+      auto pc = configInterfaceLatency(aieDevInst, metadata, xaieModule, xaieModType, xdpModType, 
+                                       metricSet, startEvent, endEvent, resetEvent, pcIndex, 
                                        threshold, retCounterEvent, tile, isSourceTile);
       std::string srcDestPairKey = metadata->getSrcDestPairKey(tile.col, tile.row);
       if (isSourceTile) {
@@ -308,14 +309,86 @@ namespace xdp::aie::profile {
   }
 
   /****************************************************************************
+   * Get and configure broadcast channels from source to destination tiles
+   * NOTE: This function applies to interface tiles only
+   ***************************************************************************/
+  std::pair<int, XAie_Events>
+  getPLBroadcastChannel(const tile_type& srcTile, std::shared_ptr<AieProfileMetadata> metadata)
+  {
+    std::pair<int, XAie_Events> rc(-1, XAIE_EVENT_NONE_PL);
+    AieRC RC = AieRC::XAIE_OK;
+    tile_type destTile;
+    
+    metadata->getDestTile(srcTile, destTile);
+    XAie_LocType destTileLocation = XAie_TileLoc(destTile.col, destTile.row);
+
+    // Include all tiles between source and destination
+    std::vector<XAie_LocType> bcTileVec;
+    for (uint8_t c = std::min(srcTile.col, destTile.col); c <= std::max(srcTile.col, destTile.col); ++c) {
+      auto tileLocation = XAie_TileLoc(c, srcTile.row);
+      bcTileVec.push_back(tileLocation);
+    }
+    
+    auto BC = aieDevice->broadcast(bcTileVec, XAIE_PL_MOD, XAIE_PL_MOD);
+    if (!BC)
+      return rc;
+    bcResourcesLatency.push_back(BC);
+
+    auto bcPair = aie::profile::getPreferredPLBroadcastChannel();
+    BC->setPreferredId(bcPair.first);
+
+    RC = BC->reserve();
+    if (RC != XAIE_OK)
+      return rc;
+
+    RC = BC->start();
+    if (RC != XAIE_OK)
+      return rc;
+
+    uint8_t bcId = BC->getBc();
+    XAie_Events bcEvent;
+    RC = BC->getEvent(destTileLocation, XAIE_PL_MOD, bcEvent);
+    if (RC != XAIE_OK)
+      return rc;
+
+    std::pair<int, XAie_Events> bcPairSelected = std::make_pair(bcId, bcEvent);
+    return bcPairSelected;
+  }
+
+  /****************************************************************************
+   * Initialize broadcast channels
+   ***************************************************************************/
+  std::pair<int, XAie_Events>
+  setupBroadcastChannel(const tile_type& currTileLoc, std::shared_ptr<AieProfileMetadata> metadata)
+  {
+    // This stores the map of location of tile and configured broadcast channel event
+    static std::map<tile_type, std::pair<int, XAie_Events>> adfAPIBroadcastEventsMap;
+
+    tile_type srcTile = currTileLoc;
+    if (!metadata->isSourceTile(currTileLoc))
+      if (!metadata->getSourceTile(currTileLoc, srcTile))
+        return {-1, XAIE_EVENT_NONE_CORE};
+    
+    if (adfAPIBroadcastEventsMap.find(srcTile) == adfAPIBroadcastEventsMap.end()) {
+      // auto bcPair = aie::profile::getPreferredPLBroadcastChannel();
+      auto bcPair = getPLBroadcastChannel(srcTile);
+      if (bcPair.first == -1 || bcPair.second == XAIE_EVENT_NONE_CORE) {
+        return {-1, XAIE_EVENT_NONE_CORE};
+      }
+      adfAPIBroadcastEventsMap[srcTile] = bcPair;
+    }
+    return adfAPIBroadcastEventsMap.at(srcTile);
+  }
+
+  /****************************************************************************
    * Configure interface tile counter for latency
    ***************************************************************************/
   std::shared_ptr<xaiefal::XAiePerfCounter>
-  configInterfaceLatency(XAie_DevInst* aieDevInst, xaiefal::XAieMod& xaieModule, 
-                         XAie_ModuleType& xaieModType, const module_type xdpModType, 
-                         const std::string& metricSet, XAie_Events startEvent, 
-                         XAie_Events endEvent, XAie_Events resetEvent, int pcIndex, 
-                         size_t threshold, XAie_Events& retCounterEvent,
+  configInterfaceLatency(XAie_DevInst* aieDevInst, std::shared_ptr<AieProfileMetadata> metadata,
+                         xaiefal::XAieMod& xaieModule, XAie_ModuleType& xaieModType, 
+                         const module_type xdpModType, const std::string& metricSet, 
+                         XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent, 
+                         int pcIndex, size_t threshold, XAie_Events& retCounterEvent,
                          const tile_type& tile, bool& isSource)
   {
    // Request combo event from xaie module
@@ -326,7 +399,7 @@ namespace xdp::aie::profile {
     
     startEvent = XAIE_EVENT_USER_EVENT_0_PL;
     if (!metadata->isSourceTile(tile)) {
-      auto bcPair = setupBroadcastChannel(tile);
+      auto bcPair = setupBroadcastChannel(tile, metadata);
       startEvent = bcPair.second;
       isSource = false;
     }
@@ -351,7 +424,7 @@ namespace xdp::aie::profile {
     // uint8_t broadcastId  = 10;
 
     if (isSource) {
-      auto bc_pair = setupBroadcastChannel(tile);
+      auto bc_pair = setupBroadcastChannel(tile, metadata);
       if (bc_pair.first == -1)
         return nullptr;
 

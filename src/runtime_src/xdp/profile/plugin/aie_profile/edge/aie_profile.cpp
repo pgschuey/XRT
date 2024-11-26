@@ -486,9 +486,8 @@ namespace xdp {
               continue;
             
             XAie_Events retCounterEvent = XAIE_EVENT_NONE_CORE;
-            perfCounter = aie::profile::configProfileAPICounters(xaieModule, mod, type,
-                            metricSet, startEvent, endEvent, resetEvent, i, 
-                            threshold, retCounterEvent, tile);
+            perfCounter = aie::profile::configProfileAPICounters(aieDevInst, metadata, xaieModule, mod, type,
+                            metricSet, startEvent, endEvent, resetEvent, i, threshold, retCounterEvent, tile);
           }
           else {
             // Request counter from resource manager
@@ -729,75 +728,6 @@ namespace xdp {
     uint16_t phyStartEvent = tmpStart + aie::profile::getCounterBase(xdpModType);
     uint16_t phyEndEvent   = tmpEnd   + aie::profile::getCounterBase(xdpModType);
     return std::make_pair(phyStartEvent, phyEndEvent);
-  }
-
-  /****************************************************************************
-   * Initialize broadcast channels
-   ***************************************************************************/
-  std::pair<int, XAie_Events>
-  AieProfile_EdgeImpl::setupBroadcastChannel(const tile_type& currTileLoc)
-  {
-    tile_type srcTile = currTileLoc;
-    if (!metadata->isSourceTile(currTileLoc))
-      if (!metadata->getSourceTile(currTileLoc, srcTile))
-        return {-1, XAIE_EVENT_NONE_CORE};
-    
-    if (adfAPIBroadcastEventsMap.find(srcTile) == adfAPIBroadcastEventsMap.end()) {
-      // auto bcPair = aie::profile::getPreferredPLBroadcastChannel();
-      auto bcPair = getPLBroadcastChannel(srcTile);
-      if (bcPair.first == -1 || bcPair.second == XAIE_EVENT_NONE_CORE) {
-        return {-1, XAIE_EVENT_NONE_CORE};
-      }
-      adfAPIBroadcastEventsMap[srcTile] = bcPair;
-    }
-    return adfAPIBroadcastEventsMap.at(srcTile);
-  }
-
-  /****************************************************************************
-   * Get and configure broadcast channels from source to destination tiles
-   * NOTE: This function applies to interface tiles only
-   ***************************************************************************/
-  std::pair<int, XAie_Events>
-  AieProfile_EdgeImpl::getPLBroadcastChannel(const tile_type& srcTile)
-  {
-    std::pair<int, XAie_Events> rc(-1, XAIE_EVENT_NONE_PL);
-    AieRC RC = AieRC::XAIE_OK;
-    tile_type destTile;
-    
-    metadata->getDestTile(srcTile, destTile);
-    XAie_LocType destTileLocation = XAie_TileLoc(destTile.col, destTile.row);
-
-    // Include all tiles between source and destination
-    std::vector<XAie_LocType> bcTileVec;
-    for (uint8_t c = std::min(srcTile.col, destTile.col); c <= std::max(srcTile.col, destTile.col); ++c) {
-      auto tileLocation = XAie_TileLoc(c, srcTile.row);
-      bcTileVec.push_back(tileLocation);
-    }
-    
-    auto BC = aieDevice->broadcast(bcTileVec, XAIE_PL_MOD, XAIE_PL_MOD);
-    if (!BC)
-      return rc;
-    bcResourcesLatency.push_back(BC);
-
-    auto bcPair = aie::profile::getPreferredPLBroadcastChannel();
-    BC->setPreferredId(bcPair.first);
-
-    RC = BC->reserve();
-    if (RC != XAIE_OK)
-      return rc;
-
-    RC = BC->start();
-    if (RC != XAIE_OK)
-      return rc;
-
-    uint8_t bcId = BC->getBc();
-    XAie_Events bcEvent;
-    RC = BC->getEvent(destTileLocation, XAIE_PL_MOD, bcEvent);
-    if (RC != XAIE_OK)
-      return rc;
-
-    std::pair<int, XAie_Events> bcPairSelected = std::make_pair(bcId, bcEvent);
-    return bcPairSelected;
   }
 
   /****************************************************************************
