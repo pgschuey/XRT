@@ -161,7 +161,7 @@ namespace xdp::aie::profile {
   /****************************************************************************
    * Get metric sets for memory tiles
    ***************************************************************************/
-  std::map<std::string, std::vector<XAie_Events>> getMemoryTileEventSets(const int hwGen)
+  std::map<std::string, std::vector<XAie_Events>> getMemoryTileEventSets()
   {
     std::map<std::string, std::vector<XAie_Events>> eventSets;
     eventSets = {
@@ -220,8 +220,6 @@ namespace xdp::aie::profile {
         XAIE_EVENT_CONFLICT_DM_BANK_6_MEM_TILE,            XAIE_EVENT_CONFLICT_DM_BANK_7_MEM_TILE,
         XAIE_EVENT_CONFLICT_DM_BANK_8_MEM_TILE,            XAIE_EVENT_CONFLICT_DM_BANK_9_MEM_TILE,
         XAIE_EVENT_CONFLICT_DM_BANK_10_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_11_MEM_TILE};
-#if 0
-      // Banks 16-23 are only defined for AIE4
       eventSets["conflict_stats2"] = {
         XAIE_EVENT_CONFLICT_DM_BANK_12_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_13_MEM_TILE,
         XAIE_EVENT_CONFLICT_DM_BANK_14_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_15_MEM_TILE,
@@ -229,11 +227,6 @@ namespace xdp::aie::profile {
         XAIE_EVENT_CONFLICT_DM_BANK_18_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_19_MEM_TILE,
         XAIE_EVENT_CONFLICT_DM_BANK_20_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_21_MEM_TILE,
         XAIE_EVENT_CONFLICT_DM_BANK_22_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_23_MEM_TILE};
-#else
-      eventSets["conflict_stats2"] = {
-        XAIE_EVENT_CONFLICT_DM_BANK_12_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_13_MEM_TILE,
-        XAIE_EVENT_CONFLICT_DM_BANK_14_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_15_MEM_TILE};
-#endif
       eventSets["conflict_stats3"] = {};
       eventSets["conflict_stats4"] = {};
     }
@@ -251,12 +244,12 @@ namespace xdp::aie::profile {
    * Get metric sets for microcontrollers
    * TODO: convert to XAie_Events once support is available from driver
    ***************************************************************************/
-  //std::map<std::string, std::vector<XAie_Events>> getMicrocontrollerEventSets(const int hwGen)
-  std::map<std::string, std::vector<uint32_t>> getMicrocontrollerEventSets(const int hwGen)
+  //std::map<std::string, std::vector<XAie_Events>> getMicrocontrollerEventSets()
+  std::map<std::string, std::vector<uint32_t>> getMicrocontrollerEventSets()
   {
     //std::map<std::string, std::vector<XAie_Events>> eventSets;
     std::map<std::string, std::vector<uint32_t>> eventSets;
-    if (hwGen < 5)
+    if (hw_gen < 5)
       return eventSets;
 
     // TODO: replace with enums once driver supports the MDM
@@ -573,15 +566,17 @@ namespace xdp::aie::profile {
     return bcPair;
   }
 
+
+
   /****************************************************************************
    * Convert user specified bytes to beats for provided metric set
    ***************************************************************************/
-  uint32_t convertToBeats(const std::string& metricSet, uint32_t bytes, uint8_t hwGen)
+  uint32_t convertToBeats(const std::string& metricSet, uint32_t bytes, uint8_t hw_gen)
   {
     if (metricSet != METRIC_BYTE_COUNT)
       return bytes;
 
-    uint32_t streamWidth = aie::getStreamWidth(hwGen);
+    uint32_t streamWidth = aie::getStreamWidth(hw_gen);
     uint32_t total_beats = static_cast<uint32_t>(std::ceil(1.0 * bytes / streamWidth));
 
     return total_beats;
