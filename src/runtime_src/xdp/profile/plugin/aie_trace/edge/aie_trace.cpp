@@ -470,7 +470,7 @@ namespace xdp {
       if (!tileHasFreeRsc(aieDevice, loc, type, metricSet)) {
         xrt_core::message::send(severity_level::warning, "XRT",
             "Tile doesn't have enough free resources for trace. Aborting trace configuration.");
-        aie::trace::printTileStats(aieDevice, tile);
+        printTileStats(aieDevice, tile);
         return false;
       }
 
@@ -640,7 +640,7 @@ namespace xdp {
 
           freeResources();
           // Print resources availability for this tile
-          aie::trace::printTileStats(aieDevice, tile);
+          printTileStats(aieDevice, tile);
           return false;
         }
 
@@ -725,7 +725,7 @@ namespace xdp {
 
           freeResources();
           // Print resources availability for this tile
-          aie::trace::printTileStats(aieDevice, tile);
+          printTileStats(aieDevice, tile);
           return false;
         }
 
@@ -879,7 +879,7 @@ namespace xdp {
 
           freeResources();
           // Print resources availability for this tile
-          aie::trace::printTileStats(aieDevice, tile);
+          printTileStats(aieDevice, tile);
           return false;
         }
 
