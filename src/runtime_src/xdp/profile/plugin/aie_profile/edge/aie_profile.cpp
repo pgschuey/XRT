@@ -436,7 +436,7 @@ namespace xdp {
         if (metadata->getUseGraphIterator() && !graphItrBroadcastConfigDone) {
           XAie_Events bcEvent = XAIE_EVENT_NONE_CORE;
           bool status = aie::profile::configGraphIteratorAndBroadcast(aieDevInst, aieDevice, 
-              metadata, xaieModule, loc, mod, type, metricSet, bcEvent);
+              metadata, xaieModule, loc, mod, type, metricSet, bcEvent, bcResourcesBytesTx);
           if (status) {
             graphIteratorBrodcastChannelEvent = bcEvent;
             graphItrBroadcastConfigDone = true;
@@ -487,7 +487,8 @@ namespace xdp {
             
             XAie_Events retCounterEvent = XAIE_EVENT_NONE_CORE;
             perfCounter = aie::profile::configProfileAPICounters(aieDevInst, metadata, xaieModule, mod, type,
-                            metricSet, startEvent, endEvent, resetEvent, i, threshold, retCounterEvent, tile);
+                            metricSet, startEvent, endEvent, resetEvent, i, threshold, retCounterEvent, tile,
+                            bcResourcesLatency);
           }
           else {
             // Request counter from resource manager

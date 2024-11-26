@@ -165,17 +165,17 @@ namespace xdp::aie::profile {
                            xaiefal::XAieMod& xaieModule, XAie_ModuleType& xaieModType, 
                            const module_type xdpModType, const std::string& metricSet, 
                            XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent,
-                           int pcIndex, size_t threshold, XAie_Events& retCounterEvent,
-                           const tile_type& tile)
+                           int pcIndex, size_t threshold, XAie_Events& retCounterEvent, const tile_type& tile, 
+                           std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency)
   {
     if (xdpModType != module_type::shim)
       return nullptr;
 
-    if (metricSet == METRIC_LATENCY && pcIndex==0) {
+    if ((metricSet == METRIC_LATENCY) && (pcIndex == 0)) {
       bool isSourceTile = true;
       auto pc = configInterfaceLatency(aieDevInst, metadata, xaieModule, xaieModType, xdpModType, 
-                                       metricSet, startEvent, endEvent, resetEvent, pcIndex, 
-                                       threshold, retCounterEvent, tile, isSourceTile);
+                                       metricSet, startEvent, endEvent, resetEvent, pcIndex, threshold, 
+                                       retCounterEvent, tile, isSourceTile, bcResourcesLatency);
       std::string srcDestPairKey = metadata->getSrcDestPairKey(tile.col, tile.row);
       if (isSourceTile) {
         adfAPIResourceInfoMap[aie::profile::adfAPI::INTF_TILE_LATENCY][srcDestPairKey].isSourceTile = true; 
@@ -187,7 +187,7 @@ namespace xdp::aie::profile {
       return pc;
     }
 
-    if (metricSet == METRIC_BYTE_COUNT && pcIndex==0) {
+    if ((metricSet == METRIC_BYTE_COUNT) && (pcIndex == 0)) {
       auto pc = configPCUsingComboEvents(xaieModule, xaieModType, xdpModType,
                                metricSet, startEvent, endEvent, resetEvent,
                                pcIndex, threshold, retCounterEvent);
@@ -199,8 +199,7 @@ namespace xdp::aie::profile {
 
     // Request counter from resource manager
     auto pc = xaieModule.perfCounter();
-    auto ret = pc->initialize(xaieModType, startEvent, 
-                              xaieModType, endEvent);
+    auto ret = pc->initialize(xaieModType, startEvent, xaieModType, endEvent);
     if (ret != XAIE_OK)
       return nullptr;
 
@@ -313,7 +312,8 @@ namespace xdp::aie::profile {
    * NOTE: This function applies to interface tiles only
    ***************************************************************************/
   std::pair<int, XAie_Events>
-  getPLBroadcastChannel(const tile_type& srcTile, std::shared_ptr<AieProfileMetadata> metadata)
+  getPLBroadcastChannel(const tile_type& srcTile, std::shared_ptr<AieProfileMetadata> metadata,
+                        std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency)
   {
     std::pair<int, XAie_Events> rc(-1, XAIE_EVENT_NONE_PL);
     AieRC RC = AieRC::XAIE_OK;
@@ -359,7 +359,8 @@ namespace xdp::aie::profile {
    * Initialize broadcast channels
    ***************************************************************************/
   std::pair<int, XAie_Events>
-  setupBroadcastChannel(const tile_type& currTileLoc, std::shared_ptr<AieProfileMetadata> metadata)
+  setupBroadcastChannel(const tile_type& currTileLoc, std::shared_ptr<AieProfileMetadata> metadata,
+                        std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency)
   {
     // This stores the map of location of tile and configured broadcast channel event
     static std::map<tile_type, std::pair<int, XAie_Events>> adfAPIBroadcastEventsMap;
@@ -371,7 +372,7 @@ namespace xdp::aie::profile {
     
     if (adfAPIBroadcastEventsMap.find(srcTile) == adfAPIBroadcastEventsMap.end()) {
       // auto bcPair = aie::profile::getPreferredPLBroadcastChannel();
-      auto bcPair = getPLBroadcastChannel(srcTile);
+      auto bcPair = getPLBroadcastChannel(srcTile, bcResourcesLatency);
       if (bcPair.first == -1 || bcPair.second == XAIE_EVENT_NONE_CORE) {
         return {-1, XAIE_EVENT_NONE_CORE};
       }
@@ -389,7 +390,8 @@ namespace xdp::aie::profile {
                          const module_type xdpModType, const std::string& metricSet, 
                          XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent, 
                          int pcIndex, size_t threshold, XAie_Events& retCounterEvent,
-                         const tile_type& tile, bool& isSource)
+                         const tile_type& tile, bool& isSource,
+                         std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency)
   {
    // Request combo event from xaie module
     auto pc = xaieModule.perfCounter();
@@ -399,13 +401,12 @@ namespace xdp::aie::profile {
     
     startEvent = XAIE_EVENT_USER_EVENT_0_PL;
     if (!metadata->isSourceTile(tile)) {
-      auto bcPair = setupBroadcastChannel(tile, metadata);
+      auto bcPair = setupBroadcastChannel(tile, metadata, bcResourcesLatency);
       startEvent = bcPair.second;
       isSource = false;
     }
 
-    auto ret = pc->initialize(xaieModType, startEvent, 
-                              xaieModType, endEvent);
+    auto ret = pc->initialize(xaieModType, startEvent, xaieModType, endEvent);
     if (ret != XAIE_OK)
       return nullptr;
 
@@ -446,9 +447,9 @@ namespace xdp::aie::profile {
    configGraphIteratorAndBroadcast(XAie_DevInst* aieDevInst, xaiefal::XAieDev* aieDevice,
                                    std::shared_ptr<AieProfileMetadata> metadata,
                                    xaiefal::XAieMod core, XAie_LocType loc, 
-                                   const XAie_ModuleType xaieModType,
-                                   const module_type xdpModType, const std::string metricSet,
-                                   XAie_Events& bcEvent)
+                                   const XAie_ModuleType xaieModType, const module_type xdpModType, 
+                                   const std::string metricSet, XAie_Events& bcEvent,
+                                   std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesBytesTx)
   {
     bool rc = false;
     if (!aie::profile::metricSupportsGraphIterator(metricSet))
@@ -484,8 +485,8 @@ namespace xdp::aie::profile {
 
     // Step 2: Configure the brodcast of the returned counter event
     XAie_Events bcChannelEvent;
-    configEventBroadcast(aieDevInst, aieDevice, metadata, loc, module_type::core, 
-                         metricSet, XAIE_CORE_MOD, counterEvent, bcChannelEvent);
+    configEventBroadcast(aieDevInst, aieDevice, metadata, loc, module_type::core, metricSet, 
+                         XAIE_CORE_MOD, counterEvent, bcChannelEvent, bcResourcesBytesTx);
 
     // Store the brodcasted channel event for later use
     bcEvent = bcChannelEvent;
@@ -528,7 +529,8 @@ namespace xdp::aie::profile {
                             std::shared_ptr<AieProfileMetadata> metadata,
                             const XAie_LocType loc, const module_type xdpModType, 
                             const std::string metricSet, const XAie_ModuleType xaieModType, 
-                            const XAie_Events bcEvent, XAie_Events& bcChannelEvent)
+                            const XAie_Events bcEvent, XAie_Events& bcChannelEvent,
+                            std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesBytesTx)
   {
     auto bcPair = aie::profile::getPreferredPLBroadcastChannel();
 

@@ -64,6 +64,7 @@ namespace xdp::aie::profile {
    * @param threshold threshold value used by counter
    * @param retCounterEvent counter event
    * @param tile tile type
+   * @param bcResourcesLatency vector of broadcast channels for latency calculations
    * @return shared pointer to performance counter used by FAL
    */
   std::shared_ptr<xaiefal::XAiePerfCounter>
@@ -71,8 +72,8 @@ namespace xdp::aie::profile {
                            xaiefal::XAieMod& xaieModule, XAie_ModuleType& xaieModType, 
                            const module_type xdpModType, const std::string& metricSet, 
                            XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent,
-                           int pcIndex, size_t threshold, XAie_Events& retCounterEvent,
-                           const tile_type& tile);
+                           int pcIndex, size_t threshold, XAie_Events& retCounterEvent, const tile_type& tile,
+                           std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency);
 
    /**
    * @brief Configure performance counter using combo event 3 FSM
@@ -97,19 +98,23 @@ namespace xdp::aie::profile {
    * @brief Get broadcast channel in interface tile
    * @param srcTile source tile location
    * @param metadata profile metadata
+   * @param bcResourcesLatency vector of broadcast channels for latency calculations
    * @return channel and event
    */
   std::pair<int, XAie_Events>
-  getPLBroadcastChannel(const tile_type& srcTile, std::shared_ptr<AieProfileMetadata> metadata);
+  getPLBroadcastChannel(const tile_type& srcTile, std::shared_ptr<AieProfileMetadata> metadata,
+                        std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency);
 
   /**
    * @brief Setup broadcast channel
    * @param currTileLoc current tile location
    * @param metadata profile metadata
+   * @param bcResourcesLatency vector of broadcast channels for latency calculations
    * @return channel and event
    */
   std::pair<int, XAie_Events>
-  setupBroadcastChannel(const tile_type& currTileLoc, std::shared_ptr<AieProfileMetadata> metadata);
+  setupBroadcastChannel(const tile_type& currTileLoc, std::shared_ptr<AieProfileMetadata> metadata,
+                        std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency);
 
   /**
    * @brief Configure interface tile counter for latency
@@ -127,6 +132,7 @@ namespace xdp::aie::profile {
    * @param retCounterEvent counter event
    * @param tile tile type
    * @param isSource source or destination?
+   * @param bcResourcesLatency vector of broadcast channels for latency calculations
    * @return shared pointer to performance counter used by FAL
    */
   std::shared_ptr<xaiefal::XAiePerfCounter>
@@ -135,7 +141,8 @@ namespace xdp::aie::profile {
                          const module_type xdpModType, const std::string& metricSet, 
                          XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent, 
                          int pcIndex, size_t threshold, XAie_Events& retCounterEvent,
-                         const tile_type& tile, bool& isSource);
+                         const tile_type& tile, bool& isSource,
+                         std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency);
 
    /**
    * @brief Configure individual AIE events for metric sets related to Profile APIs
@@ -154,9 +161,9 @@ namespace xdp::aie::profile {
    configGraphIteratorAndBroadcast(XAie_DevInst* aieDevInst, xaiefal::XAieDev* aieDevice,
                                    std::shared_ptr<AieProfileMetadata> metadata,
                                    xaiefal::XAieMod core, XAie_LocType loc, 
-                                   const XAie_ModuleType xaieModType,
-                                   const module_type xdpModType, const std::string metricSet,
-                                   XAie_Events& bcEvent);
+                                   const XAie_ModuleType xaieModType, const module_type xdpModType, 
+                                   const std::string metricSet, XAie_Events& bcEvent,
+                                   std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesBytesTx);
 
    /**
    * @brief Configure AIE Core module start on graph iteration count threshold
@@ -180,12 +187,14 @@ namespace xdp::aie::profile {
    * @param xaieModType AIE driver module type
    * @param bcEvent broadcast event
    * @param bcChannelEvent broadcast channel event
+   * @param bcResourcesBytesTx vector of broadcast channels
    */
    void configEventBroadcast(XAie_DevInst* aieDevInst, xaiefal::XAieDev* aieDevice,
                              std::shared_ptr<AieProfileMetadata> metadata,
                              const XAie_LocType loc, const module_type xdpModType, 
                              const std::string metricSet, const XAie_ModuleType xaieModType, 
-                             const XAie_Events bcEvent, XAie_Events& bcChannelEvent);
+                             const XAie_Events bcEvent, XAie_Events& bcChannelEvent,
+                             std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesBytesTx);
 
    /**
    * @brief Configure the individual AIE events for metric sets that use group events
