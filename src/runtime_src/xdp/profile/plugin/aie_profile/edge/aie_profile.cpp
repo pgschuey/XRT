@@ -88,7 +88,7 @@ namespace xdp {
     shimEndEvents = shimStartEvents;
     shimEndEvents[METRIC_BYTE_COUNT] = {XAIE_EVENT_PORT_RUNNING_0_PL, XAIE_EVENT_PERF_CNT_0_PL};
 
-    memTileStartEvents = aie::profile::getMemoryTileEventSets();
+    memTileStartEvents = aie::profile::getMemoryTileEventSets(hwGen);
     memTileEndEvents = memTileStartEvents;
 
     microcontrollerEvents = aie::profile::getMicrocontrollerEventSets(hwGen);
@@ -429,7 +429,7 @@ namespace xdp {
         aie::profile::configEventSelections(aieDevInst, loc, type, metricSet, channel0);
         // TBD : Placeholder to configure shim tile with required profile counters.
 
-        aie::profile::configStreamSwitchPorts(aieDevInst, tileMetric.first, xaieTile, loc, type, 
+        aie::profile::configStreamSwitchPorts(tileMetric.first, xaieTile, loc, type, 
             numFreeCtrSS, metricSet, channel0, channel1, startEvents, endEvents);
        
         // Identify the profiling API metric sets and configure graph events
@@ -663,19 +663,22 @@ namespace xdp {
     // Read and record MDM counters (if available)
     // NOTE: all MDM counters in a given tile are sampled in same read sequence
     for (auto& ucTile : microcontrollerTileEvents) {
-      // Get timestamp in milliseconds
-      double timestamp = xrt_core::time_ns() / 1.0e6;
+      auto tile = ucTile.first;
+      auto events = ucTile.second;
+
       std::vector<uint32_t> counterValues;
-      aie::profile::readMDMCounters(aieDevInst, col, row, counterValues);
+      aie::profile::readMDMCounters(aieDevInst, tile.col, tile.row, counterValues);
+
+      double timestamp = xrt_core::time_ns() / 1.0e6;
 
       for (uint64_t c=0; c < counterValues.size(); c++) {
         std::vector<uint64_t> values;
-        values.push_back(ucTile.first.col);
+        values.push_back(tile.col);
         values.push_back(0);
-        values.push_back(ucTile.second.at(c));
-        values.push_back(ucTile.second.at(c));
+        values.push_back(events.at(c));
+        values.push_back(events.at(c));
         values.push_back(0);
-        values.push_back(counterValues.at(c))
+        values.push_back(counterValues.at(c));
       
         db->getDynamicInfo().addAIESample(index, timestamp, values);
       }

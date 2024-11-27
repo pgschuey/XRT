@@ -96,6 +96,7 @@ namespace xdp::aie::profile {
                             const module_type xdpModType, const std::string& metricSet, 
                             XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent,
                             int pcIndex, size_t threshold, XAie_Events& retCounterEvent);
+                            
   /**
    * @brief Get broadcast channel in interface tile
    * @param srcTile source tile location
