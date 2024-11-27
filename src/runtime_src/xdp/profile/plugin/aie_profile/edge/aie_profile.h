@@ -65,23 +65,6 @@ namespace xdp {
                          XAie_ModuleType& xaieModType, module_type xdpModType, 
                          const std::string& metricSet,
                          XAie_Events startEvent, XAie_Events endEvent);
-
-      inline std::shared_ptr<xaiefal::XAiePerfCounter>
-      startCounter(std::shared_ptr<xaiefal::XAiePerfCounter>& pc,
-                   XAie_Events counterEvent, XAie_Events& retCounterEvent)
-      {
-        if (!pc)
-          return nullptr;
-        
-        auto ret = pc->start();
-        if (ret != XAIE_OK)
-          return nullptr;
-        
-        // Return the known counter event
-        retCounterEvent = counterEvent;
-        return pc;
-      }
-
       void displayAdfAPIResults();
 
     private:

@@ -37,7 +37,8 @@ namespace xdp::aie::profile {
                                const uint32_t numCounters, const std::string metricSet, 
                                const uint8_t channel0, const uint8_t channel1, 
                                std::vector<XAie_Events>& startEvents,
-                               std::vector<XAie_Events>& endEvents)
+                               std::vector<XAie_Events>& endEvents,
+                               std::vector<std::shared_ptr<xaiefal::XAieStreamPortSelect>>& streamPorts)
   {
     std::map<uint8_t, std::shared_ptr<xaiefal::XAieStreamPortSelect>> switchPortMap;
 
@@ -161,11 +162,13 @@ namespace xdp::aie::profile {
    * Configure performance counter for profile API
    ***************************************************************************/
   std::shared_ptr<xaiefal::XAiePerfCounter>
-  configProfileAPICounters(XAie_DevInst* aieDevInst, std::shared_ptr<AieProfileMetadata> metadata,
+  configProfileAPICounters(XAie_DevInst* aieDevInst, xaiefal::XAieDev* aieDevice,
+                           std::shared_ptr<AieProfileMetadata> metadata,
                            xaiefal::XAieMod& xaieModule, XAie_ModuleType& xaieModType, 
                            const module_type xdpModType, const std::string& metricSet, 
-                           XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent,
-                           int pcIndex, size_t threshold, XAie_Events& retCounterEvent, const tile_type& tile, 
+                           XAie_Events startEvent, XAie_Events endEvent, 
+                           XAie_Events resetEvent, int pcIndex, size_t counterIndex, 
+                           size_t threshold, XAie_Events& retCounterEvent, const tile_type& tile,
                            std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency,
                            std::map<adfAPI, std::map<std::string, adfAPIResourceInfo>>& adfAPIResourceInfoMap)
   {
@@ -174,16 +177,16 @@ namespace xdp::aie::profile {
 
     if ((metricSet == METRIC_LATENCY) && (pcIndex == 0)) {
       bool isSourceTile = true;
-      auto pc = configInterfaceLatency(aieDevInst, metadata, xaieModule, xaieModType, xdpModType, 
+      auto pc = configInterfaceLatency(aieDevInst, aieDevice, metadata, xaieModule, xaieModType, xdpModType, 
                                        metricSet, startEvent, endEvent, resetEvent, pcIndex, threshold, 
                                        retCounterEvent, tile, isSourceTile, bcResourcesLatency);
       std::string srcDestPairKey = metadata->getSrcDestPairKey(tile.col, tile.row);
       if (isSourceTile) {
         adfAPIResourceInfoMap[aie::profile::adfAPI::INTF_TILE_LATENCY][srcDestPairKey].isSourceTile = true; 
-        adfAPIResourceInfoMap[aie::profile::adfAPI::INTF_TILE_LATENCY][srcDestPairKey].srcPcIdx = perfCounters.size();
+        adfAPIResourceInfoMap[aie::profile::adfAPI::INTF_TILE_LATENCY][srcDestPairKey].srcPcIdx = counterIndex;
       }
       else {
-        adfAPIResourceInfoMap[aie::profile::adfAPI::INTF_TILE_LATENCY][srcDestPairKey].destPcIdx = perfCounters.size();
+        adfAPIResourceInfoMap[aie::profile::adfAPI::INTF_TILE_LATENCY][srcDestPairKey].destPcIdx = counterIndex;
       }
       return pc;
     }
@@ -193,7 +196,7 @@ namespace xdp::aie::profile {
                                metricSet, startEvent, endEvent, resetEvent,
                                pcIndex, threshold, retCounterEvent);
       std::string srcKey = "(" + aie::uint8ToStr(tile.col) + "," + aie::uint8ToStr(tile.row) + ")";
-      adfAPIResourceInfoMap[aie::profile::adfAPI::START_TO_BYTES_TRANSFERRED][srcKey].srcPcIdx = perfCounters.size();
+      adfAPIResourceInfoMap[aie::profile::adfAPI::START_TO_BYTES_TRANSFERRED][srcKey].srcPcIdx = counterIndex;
       adfAPIResourceInfoMap[aie::profile::adfAPI::START_TO_BYTES_TRANSFERRED][srcKey].isSourceTile = true;
       return pc;
     }
@@ -223,6 +226,25 @@ namespace xdp::aie::profile {
     
     // Respond back with this performance counter event 
     // to use it later for broadcasting
+    retCounterEvent = counterEvent;
+    return pc;
+  }
+
+  /****************************************************************************
+   * Start a performance counter
+   ***************************************************************************/
+  std::shared_ptr<xaiefal::XAiePerfCounter>
+  startCounter(std::shared_ptr<xaiefal::XAiePerfCounter>& pc,
+               XAie_Events counterEvent, XAie_Events& retCounterEvent)
+  {
+    if (!pc)
+      return nullptr;
+    
+    auto ret = pc->start();
+    if (ret != XAIE_OK)
+      return nullptr;
+    
+    // Return the known counter event
     retCounterEvent = counterEvent;
     return pc;
   }
@@ -313,7 +335,8 @@ namespace xdp::aie::profile {
    * NOTE: This function applies to interface tiles only
    ***************************************************************************/
   std::pair<int, XAie_Events>
-  getPLBroadcastChannel(const tile_type& srcTile, std::shared_ptr<AieProfileMetadata> metadata,
+  getPLBroadcastChannel(xaiefal::XAieDev* aieDevice, const tile_type& srcTile, 
+                        std::shared_ptr<AieProfileMetadata> metadata,
                         std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency)
   {
     std::pair<int, XAie_Events> rc(-1, XAIE_EVENT_NONE_PL);
@@ -360,7 +383,8 @@ namespace xdp::aie::profile {
    * Initialize broadcast channels
    ***************************************************************************/
   std::pair<int, XAie_Events>
-  setupBroadcastChannel(const tile_type& currTileLoc, std::shared_ptr<AieProfileMetadata> metadata,
+  setupBroadcastChannel(xaiefal::XAieDev* aieDevice, const tile_type& currTileLoc, 
+                        std::shared_ptr<AieProfileMetadata> metadata,
                         std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency)
   {
     // This stores the map of location of tile and configured broadcast channel event
@@ -373,7 +397,7 @@ namespace xdp::aie::profile {
     
     if (adfAPIBroadcastEventsMap.find(srcTile) == adfAPIBroadcastEventsMap.end()) {
       // auto bcPair = aie::profile::getPreferredPLBroadcastChannel();
-      auto bcPair = getPLBroadcastChannel(srcTile, metadata, bcResourcesLatency);
+      auto bcPair = getPLBroadcastChannel(aieDevice, srcTile, metadata, bcResourcesLatency);
       if (bcPair.first == -1 || bcPair.second == XAIE_EVENT_NONE_CORE) {
         return {-1, XAIE_EVENT_NONE_CORE};
       }
@@ -386,7 +410,8 @@ namespace xdp::aie::profile {
    * Configure interface tile counter for latency
    ***************************************************************************/
   std::shared_ptr<xaiefal::XAiePerfCounter>
-  configInterfaceLatency(XAie_DevInst* aieDevInst, std::shared_ptr<AieProfileMetadata> metadata,
+  configInterfaceLatency(XAie_DevInst* aieDevInst, xaiefal::XAieDev* aieDevice,
+                         std::shared_ptr<AieProfileMetadata> metadata,
                          xaiefal::XAieMod& xaieModule, XAie_ModuleType& xaieModType, 
                          const module_type xdpModType, const std::string& metricSet, 
                          XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent, 
@@ -402,7 +427,7 @@ namespace xdp::aie::profile {
     
     startEvent = XAIE_EVENT_USER_EVENT_0_PL;
     if (!metadata->isSourceTile(tile)) {
-      auto bcPair = setupBroadcastChannel(tile, metadata, bcResourcesLatency);
+      auto bcPair = setupBroadcastChannel(aieDevice, tile, metadata, bcResourcesLatency);
       startEvent = bcPair.second;
       isSource = false;
     }
@@ -426,7 +451,7 @@ namespace xdp::aie::profile {
     // uint8_t broadcastId  = 10;
 
     if (isSource) {
-      auto bc_pair = setupBroadcastChannel(tile, metadata, bcResourcesLatency);
+      auto bc_pair = setupBroadcastChannel(aieDevice, tile, metadata, bcResourcesLatency);
       if (bc_pair.first == -1)
         return nullptr;
 

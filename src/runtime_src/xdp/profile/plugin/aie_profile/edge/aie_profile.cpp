@@ -430,7 +430,7 @@ namespace xdp {
         // TBD : Placeholder to configure shim tile with required profile counters.
 
         aie::profile::configStreamSwitchPorts(tileMetric.first, xaieTile, loc, type, 
-            numFreeCtrSS, metricSet, channel0, channel1, startEvents, endEvents);
+            numFreeCtrSS, metricSet, channel0, channel1, startEvents, endEvents, streamPorts);
        
         // Identify the profiling API metric sets and configure graph events
         if (metadata->getUseGraphIterator() && !graphItrBroadcastConfigDone) {
@@ -486,9 +486,9 @@ namespace xdp {
               continue;
             
             XAie_Events retCounterEvent = XAIE_EVENT_NONE_CORE;
-            perfCounter = aie::profile::configProfileAPICounters(aieDevInst, metadata, xaieModule, mod, type,
-                            metricSet, startEvent, endEvent, resetEvent, i, threshold, retCounterEvent, tile,
-                            bcResourcesLatency, adfAPIResourceInfoMap);
+            perfCounter = aie::profile::configProfileAPICounters(aieDevInst, aieDevice, metadata, xaieModule, 
+                            mod, type, metricSet, startEvent, endEvent, resetEvent, i, perfCounters.size(),
+                            threshold, retCounterEvent, tile, bcResourcesLatency, adfAPIResourceInfoMap);
           }
           else {
             // Request counter from resource manager

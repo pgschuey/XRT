@@ -20,6 +20,7 @@
 #include <cstdint>
 #include "xaiefal/xaiefal.hpp"
 #include "xdp/profile/plugin/aie_profile/aie_profile_metadata.h"
+#include "xdp/profile/plugin/aie_profile/util/aie_profile_util.h"
 #include "xdp/profile/database/static_info/aie_constructs.h"
 
 extern "C" {
@@ -41,17 +42,20 @@ namespace xdp::aie::profile {
    * @param channel1 second channel to be configured
    * @param startEvents vector of start events from metric set
    * @param endEvents vector of end events from metric set
+   * @param streamPorts vector of stream ports used
    */
    void configStreamSwitchPorts(const tile_type& tile, xaiefal::XAieTile& xaieTile, 
                                 const XAie_LocType loc, const module_type type, 
                                 const uint32_t numCounters, const std::string metricSet, 
                                 const uint8_t channel0, const uint8_t channel1, 
                                 std::vector<XAie_Events>& startEvents,
-                                std::vector<XAie_Events>& endEvents);
+                                std::vector<XAie_Events>& endEvents,
+                                std::vector<std::shared_ptr<xaiefal::XAieStreamPortSelect>>& streamPorts);
 
   /**
    * @brief Configure performance counter for profile API
    * @param aieDevInst AIE device instance
+   * @param aieDevice AIE device
    * @param metadata profile metadata
    * @param xaieModule module type used by FAL
    * @param xaieModType AIE driver module type
@@ -61,6 +65,7 @@ namespace xdp::aie::profile {
    * @param endEvent end event for counter
    * @param resetEvent reset event for counter
    * @param pcIndex index of performance counter
+   * @param counterIndex overall index of counter
    * @param threshold threshold value used by counter
    * @param retCounterEvent counter event
    * @param tile tile type
@@ -69,13 +74,26 @@ namespace xdp::aie::profile {
    * @return shared pointer to performance counter used by FAL
    */
   std::shared_ptr<xaiefal::XAiePerfCounter>
-  configProfileAPICounters(XAie_DevInst* aieDevInst, std::shared_ptr<AieProfileMetadata> metadata,
+  configProfileAPICounters(XAie_DevInst* aieDevInst, xaiefal::XAieDev* aieDevice,
+                           std::shared_ptr<AieProfileMetadata> metadata,
                            xaiefal::XAieMod& xaieModule, XAie_ModuleType& xaieModType, 
                            const module_type xdpModType, const std::string& metricSet, 
-                           XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent,
-                           int pcIndex, size_t threshold, XAie_Events& retCounterEvent, const tile_type& tile,
+                           XAie_Events startEvent, XAie_Events endEvent, 
+                           XAie_Events resetEvent, int pcIndex, size_t counterIndex, 
+                           size_t threshold, XAie_Events& retCounterEvent, const tile_type& tile,
                            std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency,
                            std::map<adfAPI, std::map<std::string, adfAPIResourceInfo>>& adfAPIResourceInfoMap);
+
+   /**
+   * @brief Start a performance counter
+   * @param pc performance counter
+   * @param counterEvent counter event
+   * @param retCounterEvent returned counter event
+   * @return shared pointer to performance counter used by FAL
+   */
+   std::shared_ptr<xaiefal::XAiePerfCounter>
+   startCounter(std::shared_ptr<xaiefal::XAiePerfCounter>& pc,
+                XAie_Events counterEvent, XAie_Events& retCounterEvent);
 
    /**
    * @brief Configure performance counter using combo event 3 FSM
@@ -96,32 +114,37 @@ namespace xdp::aie::profile {
                             const module_type xdpModType, const std::string& metricSet, 
                             XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent,
                             int pcIndex, size_t threshold, XAie_Events& retCounterEvent);
-                            
+
   /**
    * @brief Get broadcast channel in interface tile
+   * @param aieDevice AIE device
    * @param srcTile source tile location
    * @param metadata profile metadata
    * @param bcResourcesLatency vector of broadcast channels for latency calculations
    * @return channel and event
    */
   std::pair<int, XAie_Events>
-  getPLBroadcastChannel(const tile_type& srcTile, std::shared_ptr<AieProfileMetadata> metadata,
+  getPLBroadcastChannel(xaiefal::XAieDev* aieDevice, const tile_type& srcTile, 
+                        std::shared_ptr<AieProfileMetadata> metadata,
                         std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency);
 
   /**
    * @brief Setup broadcast channel
+   * @param aieDevice AIE device
    * @param currTileLoc current tile location
    * @param metadata profile metadata
    * @param bcResourcesLatency vector of broadcast channels for latency calculations
    * @return channel and event
    */
   std::pair<int, XAie_Events>
-  setupBroadcastChannel(const tile_type& currTileLoc, std::shared_ptr<AieProfileMetadata> metadata,
+  setupBroadcastChannel(xaiefal::XAieDev* aieDevice, const tile_type& currTileLoc, 
+                        std::shared_ptr<AieProfileMetadata> metadata,
                         std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency);
 
   /**
    * @brief Configure interface tile counter for latency
    * @param aieDevInst AIE device instance
+   * @param aieDevice AIE device
    * @param metadata profile metadata
    * @param xaieModule module type used by FAL
    * @param xaieModType AIE driver module type
@@ -139,7 +162,8 @@ namespace xdp::aie::profile {
    * @return shared pointer to performance counter used by FAL
    */
   std::shared_ptr<xaiefal::XAiePerfCounter>
-  configInterfaceLatency(XAie_DevInst* aieDevInst, std::shared_ptr<AieProfileMetadata> metadata,
+  configInterfaceLatency(XAie_DevInst* aieDevInst, xaiefal::XAieDev* aieDevice,
+                         std::shared_ptr<AieProfileMetadata> metadata,
                          xaiefal::XAieMod& xaieModule, XAie_ModuleType& xaieModType, 
                          const module_type xdpModType, const std::string& metricSet, 
                          XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent, 
