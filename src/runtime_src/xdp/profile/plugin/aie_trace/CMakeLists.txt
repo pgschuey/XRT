@@ -31,6 +31,7 @@ file(GLOB AIE_TRACE_PLUGIN_FILES
   "${OFFLOAD_DIR}/*.cpp"
   "${DEVICE_DIR}/*.h"
   "${DEVICE_DIR}/*.cpp"
+  "${PROFILE_DIR}/plugin/aie_trace/util/aie_trace_util.*"
   "${PROFILE_DIR}/plugin/aie_trace/*.h"
   "${PROFILE_DIR}/plugin/aie_trace/*.cpp"
   "${PROFILE_DIR}/writer/aie_trace/*.h"
@@ -39,8 +40,7 @@ file(GLOB AIE_TRACE_PLUGIN_FILES
   "${IMPL_DIR}/*.cpp"
 )
 file(GLOB AIE_TRACE_UTIL_FILES
-  "${PROFILE_DIR}/plugin/aie_trace/util/*.h"
-  "${PROFILE_DIR}/plugin/aie_trace/util/*.cpp"
+  "${PROFILE_DIR}/plugin/aie_trace/util/aie_trace_config.*"
 )
 
 file(GLOB AIE_DRIVER_COMMON_UTIL_FILES

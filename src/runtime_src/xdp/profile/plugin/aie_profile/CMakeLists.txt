@@ -16,6 +16,7 @@ elseif (DEFINED XRT_AIE_BUILD AND ${XRT_NATIVE_BUILD} STREQUAL "no")
 endif()
 
 file(GLOB AIE_PROFILE_PLUGIN_FILES
+  "${PROFILE_DIR}/plugin/aie_trace/util/aie_profile_util.*"
   "${PROFILE_DIR}/plugin/aie_profile/*.h"
   "${PROFILE_DIR}/plugin/aie_profile/*.cpp"
   "${PROFILE_DIR}/writer/aie_profile/*.h"
@@ -25,8 +26,7 @@ file(GLOB AIE_PROFILE_PLUGIN_FILES
 )
 
 file(GLOB AIE_PROFILE_UTIL_FILES
-  "${PROFILE_DIR}/plugin/aie_profile/util/*.h"
-  "${PROFILE_DIR}/plugin/aie_profile/util/*.cpp"
+  "${PROFILE_DIR}/plugin/aie_trace/util/aie_profile_config.*"
 )
 
 file(GLOB AIE_DRIVER_COMMON_UTIL_FILES
@@ -35,7 +35,7 @@ file(GLOB AIE_DRIVER_COMMON_UTIL_FILES
 )
 
 if (XDP_CLIENT_BUILD_CMAKE STREQUAL "yes")
-  add_library(xdp_aie_profile_plugin MODULE ${AIE_PROFILE_PLUGIN_FILES} ${AIE_PROFILE_UTIL_FILES} ${AIE_DRIVER_COMMON_UTIL_FILES})
+  add_library(xdp_aie_profile_plugin MODULE ${AIE_PROFILE_PLUGIN_FILES} ${AIE_DRIVER_COMMON_UTIL_FILES})
   add_dependencies(xdp_aie_profile_plugin xdp_core xrt_coreutil)
   target_link_libraries(xdp_aie_profile_plugin PRIVATE xdp_core xrt_coreutil xaiengine)
   target_compile_definitions(xdp_aie_profile_plugin PRIVATE XDP_CLIENT_BUILD=1 -DXAIE_FEATURE_MSVC)
@@ -60,7 +60,6 @@ elseif (${XRT_NATIVE_BUILD} STREQUAL "yes")
   )
 
 elseif (DEFINED XRT_AIE_BUILD AND ${XRT_NATIVE_BUILD} STREQUAL "no")
-
   add_library(xdp_aie_profile_plugin MODULE ${AIE_PROFILE_PLUGIN_FILES} ${AIE_PROFILE_UTIL_FILES})
   add_dependencies(xdp_aie_profile_plugin xdp_core xrt_coreutil)
   target_link_libraries(xdp_aie_profile_plugin PRIVATE xdp_core xrt_coreutil xaiengine)
