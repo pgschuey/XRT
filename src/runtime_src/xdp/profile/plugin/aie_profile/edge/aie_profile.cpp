@@ -517,7 +517,6 @@ namespace xdp {
             //      eventC = Port Running and eventD = stop event (counter event).
             XAie_EventGenerate(aieDevInst, tileloc, mod, XAIE_EVENT_USER_EVENT_1_PL);
             XAie_EventGenerate(aieDevInst, tileloc, mod, XAIE_EVENT_USER_EVENT_1_PL);
-            XAie_EventGenerate(aieDevInst, tileloc, mod, XAIE_EVENT_USER_EVENT_1_PL);
           }
 
           // Convert enums to physical event IDs for reporting purposes

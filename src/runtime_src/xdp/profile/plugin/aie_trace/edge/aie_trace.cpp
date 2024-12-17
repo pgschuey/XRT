@@ -344,6 +344,7 @@ namespace xdp {
     // Get the column shift for partition
     // NOTE: If partition is not used, this value is zero.
     uint8_t startColShift = metadata->getPartitionOverlayStartCols().front();
+    uint8_t numCols = 38;
     aie::displayColShiftInfo(startColShift);
 
     // Zero trace event tile counts
@@ -356,6 +357,35 @@ namespace xdp {
     // NOTE: Flush trace module always at the end because for some applications
     //       core might be running infinitely.
     
+    auto metadataReader = (VPDatabase::Instance()->getStaticInfo()).getAIEmetadataReader();
+    if (!metadataReader) {
+      if (aie::isDebugVerbosity()) {
+        std::stringstream msg;
+        msg << "AIE metadata reader is null";
+        xrt_core::message::send(severity_level::debug, "XRT", msg.str());
+      }
+    }
+    
+    auto compilerOptions = metadataReader->getAIECompilerOptions();
+    std::shared_ptr<xaiefal::XAieBroadcast> traceStartBroadcastCh1 = nullptr, traceStartBroadcastCh2 = nullptr;
+    if(compilerOptions.enable_multi_layer) {
+
+      aie::trace::timerSyncronization(aieDevInst,aieDevice, metadata, startColShift, numCols);
+      if(xrt_core::config::get_aie_trace_settings_trace_start_broadcast()) 
+      {
+        std::vector<XAie_LocType> vL;
+        traceStartBroadcastCh1 = aieDevice->broadcast(vL, XAIE_PL_MOD, XAIE_CORE_MOD);
+        traceStartBroadcastCh1->reserve();
+        traceStartBroadcastCh2 = aieDevice->broadcast(vL, XAIE_PL_MOD, XAIE_CORE_MOD);
+        traceStartBroadcastCh2->reserve();
+        aie::trace::build2ChannelBroadcastNetwork(aieDevInst, metadata, traceStartBroadcastCh1->getBc(), traceStartBroadcastCh2->getBc(), XAIE_EVENT_USER_EVENT_0_PL, startColShift, numCols);
+        
+        coreTraceStartEvent = (XAie_Events) (XAIE_EVENT_BROADCAST_0_CORE + traceStartBroadcastCh1->getBc());
+        memoryTileTraceStartEvent = (XAie_Events) (XAIE_EVENT_BROADCAST_0_MEM_TILE + traceStartBroadcastCh1->getBc());
+        interfaceTileTraceStartEvent = (XAie_Events) (XAIE_EVENT_BROADCAST_A_0_PL + traceStartBroadcastCh2->getBc());
+      }
+    }
+
     if (metadata->getUseUserControl())
       coreTraceStartEvent = XAIE_EVENT_INSTR_EVENT_0_CORE;
     coreTraceEndEvent = XAIE_EVENT_INSTR_EVENT_1_CORE;
@@ -706,7 +736,10 @@ namespace xdp {
           traceStartEvent = comboEvents.at(0);
           traceEndEvent = comboEvents.at(1);
         }
-
+        if(type == module_type::core && xrt_core::config::get_aie_trace_settings_trace_start_broadcast())
+        {
+          traceStartEvent = (XAie_Events) (XAIE_EVENT_BROADCAST_0_MEM + traceStartBroadcastCh1->getBc());
+        }
         // Configure event ports on stream switch
         // NOTE: These are events from the core module stream switch
         //       outputted on the memory module trace stream. 
@@ -978,6 +1011,9 @@ namespace xdp {
       for (int n = 0; n <= NUM_TRACE_EVENTS; ++n)
         (db->getStaticInfo()).addAIECoreEventResources(deviceId, n, mNumTileTraceEvents[m][n]);
     }
+
+    XAie_EventGenerate(aieDevInst, XAie_TileLoc(startColShift, 0), XAIE_PL_MOD, XAIE_EVENT_USER_EVENT_0_PL);
+
     return true;
   }  // end setMetricsSettings
 
