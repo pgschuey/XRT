@@ -7,10 +7,9 @@
 # Edge-Versal systems, but not Edge-aarch64.  It also has a dependency
 # on the hardware shim
 # ====================================================================
-if(XDP_TELLURIDE_BUILD_CMAKE STREQUAL "yes")
-  message("**************************Inside Telluride build CMake aie_trace**************************")
-  set(IMPL_DIR "${PROFILE_DIR}/plugin/aie_trace/telluride")
-  set(OFFLOAD_DIR "${PROFILE_DIR}/device/aie_trace/telluride")
+if (XDP_TELLURIDE_BUILD_CMAKE STREQUAL "yes")
+  set(IMPL_DIR "${PROFILE_DIR}/plugin/aie_trace/ve2")
+  set(OFFLOAD_DIR "${PROFILE_DIR}/device/aie_trace/ve2")
   set(DEVICE_DIR "${PROFILE_DIR}/device/hal_device")
 elseif (XDP_CLIENT_BUILD_CMAKE STREQUAL "yes")
   set(IMPL_DIR "${PROFILE_DIR}/plugin/aie_trace/client")
@@ -52,8 +51,7 @@ file(GLOB AIE_DRIVER_COMMON_UTIL_FILES
   "${PROFILE_DIR}/device/common/*.cpp"
 )
 
-if(XDP_TELLURIDE_BUILD_CMAKE STREQUAL "yes")
-  message("**************************Inside Telluride build CMake aie_trace**************************")
+if (XDP_TELLURIDE_BUILD_CMAKE STREQUAL "yes")
   add_library(xdp_aie_trace_plugin MODULE ${AIE_TRACE_PLUGIN_FILES} ${AIE_TRACE_UTIL_FILES})
 
   add_dependencies(xdp_aie_trace_plugin xdp_core xrt_coreutil)
@@ -65,7 +63,6 @@ if(XDP_TELLURIDE_BUILD_CMAKE STREQUAL "yes")
   install (TARGETS xdp_aie_trace_plugin
     LIBRARY DESTINATION ${XDP_PLUGIN_INSTALL_DIR}
   )
-
 
 elseif (XDP_CLIENT_BUILD_CMAKE STREQUAL "yes")
   add_library(xdp_aie_trace_plugin MODULE ${AIE_TRACE_PLUGIN_FILES} ${AIE_DRIVER_COMMON_UTIL_FILES})
@@ -110,5 +107,3 @@ elseif (DEFINED XRT_AIE_BUILD AND ${XRT_NATIVE_BUILD} STREQUAL "no")
 # Else, on edge-aarch64 don't build at all
 
 endif()
-
-
