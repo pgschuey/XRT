@@ -151,7 +151,7 @@ namespace xdp {
     }
     xrt_core::message::send(severity_level::info, "XRT", msg.str());
   }
-  
+
   /****************************************************************************
    * Verify correctness of trace buffer size
    ***************************************************************************/
@@ -736,10 +736,9 @@ namespace xdp {
           traceStartEvent = comboEvents.at(0);
           traceEndEvent = comboEvents.at(1);
         }
-        if(type == module_type::core && xrt_core::config::get_aie_trace_settings_trace_start_broadcast())
-        {
+        if ((type == module_type::core) && xrt_core::config::get_aie_trace_settings_trace_start_broadcast())
           traceStartEvent = (XAie_Events) (XAIE_EVENT_BROADCAST_0_MEM + traceStartBroadcastCh1->getBc());
-        }
+
         // Configure event ports on stream switch
         // NOTE: These are events from the core module stream switch
         //       outputted on the memory module trace stream. 
@@ -1012,6 +1011,7 @@ namespace xdp {
         (db->getStaticInfo()).addAIECoreEventResources(deviceId, n, mNumTileTraceEvents[m][n]);
     }
 
+    // Generate user event
     XAie_EventGenerate(aieDevInst, XAie_TileLoc(startColShift, 0), XAIE_PL_MOD, XAIE_EVENT_USER_EVENT_0_PL);
 
     return true;

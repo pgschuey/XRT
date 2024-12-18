@@ -36,6 +36,7 @@ namespace xdp {
     void freeResources();
     
   private:
+    void printTileStats(xaiefal::XAieDev* aieDevice, const tile_type& tile);
     uint64_t checkTraceBufSize(uint64_t size);
     bool tileHasFreeRsc(xaiefal::XAieDev* aieDevice, XAie_LocType& loc, 
                         const module_type type, const std::string& metricSet);

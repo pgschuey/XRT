@@ -65,7 +65,7 @@ if (XDP_TELLURIDE_BUILD_CMAKE STREQUAL "yes")
   )
 
 elseif (XDP_CLIENT_BUILD_CMAKE STREQUAL "yes")
-  add_library(xdp_aie_trace_plugin MODULE ${AIE_TRACE_PLUGIN_FILES} ${AIE_DRIVER_COMMON_UTIL_FILES})
+  add_library(xdp_aie_trace_plugin MODULE ${AIE_TRACE_PLUGIN_FILES} ${AIE_TRACE_COMMON_UTIL_FILES} ${AIE_DRIVER_COMMON_UTIL_FILES})
   add_dependencies(xdp_aie_trace_plugin xdp_core xrt_coreutil)
   target_link_libraries(xdp_aie_trace_plugin PRIVATE xdp_core xrt_coreutil xaiengine)
   target_compile_definitions(xdp_aie_trace_plugin PRIVATE XDP_CLIENT_BUILD=1 -DXAIE_FEATURE_MSVC)
