@@ -38,6 +38,8 @@
 
 #ifdef XDP_CLIENT_BUILD
 #include "client/aie_profile.h"
+#elif XDP_VE2_BUILD
+#include "ve2/aie_profile.h"
 #elif defined(XRT_X86_BUILD)
 #include "x86/aie_profile.h"
 #else
@@ -149,13 +151,14 @@ namespace xdp {
 #ifdef XDP_CLIENT_BUILD
     AIEData.metadata->setHwContext(context);
     AIEData.implementation = std::make_unique<AieProfile_WinImpl>(db, AIEData.metadata);
+#elif XDP_VE2_BUILD
+    AIEData.implementation = std::make_unique<AieProfile_VE2Impl>(db, AIEData.metadata);
 #elif defined(XRT_X86_BUILD)
     AIEData.implementation = std::make_unique<AieProfile_x86Impl>(db, AIEData.metadata);
 #else
     AIEData.implementation = std::make_unique<AieProfile_EdgeImpl>(db, AIEData.metadata);
 #endif
     auto& implementation = AIEData.implementation;
-
 
     // Ensure we only read/configure once per xclbin
     if (!(db->getStaticInfo()).isAIECounterRead(deviceID)) {

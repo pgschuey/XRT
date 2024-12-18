@@ -1,13 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
-# Copyright (C) 2022 Advanced Micro Devices, Inc.  All rights reserved.
+# Copyright (C) 2022-2024 Advanced Micro Devices, Inc.  All rights reserved.
 #
 
 # ====================================================================
 # This builds the AIE Profile plugin.  It is currently built
-# on both Edge and x86 platforms that support AIE.
+# on Edge, Client, and x86 platforms that support AIE.
 # ====================================================================
 
-if (XDP_CLIENT_BUILD_CMAKE STREQUAL "yes")
+if (XDP_TELLURIDE_BUILD_CMAKE STREQUAL "yes")
+  set(IMPL_DIR "${PROFILE_DIR}/plugin/aie_profile/ve2")
+elseif (XDP_CLIENT_BUILD_CMAKE STREQUAL "yes")
   set(IMPL_DIR "${PROFILE_DIR}/plugin/aie_profile/client")
 elseif (${XRT_NATIVE_BUILD} STREQUAL "yes")
   set(IMPL_DIR "${PROFILE_DIR}/plugin/aie_profile/x86")
@@ -34,7 +36,20 @@ file(GLOB AIE_DRIVER_COMMON_UTIL_FILES
   "${PROFILE_DIR}/device/common/*.cpp"
 )
 
-if (XDP_CLIENT_BUILD_CMAKE STREQUAL "yes")
+if (XDP_TELLURIDE_BUILD_CMAKE STREQUAL "yes")
+  add_library(xdp_aie_profile_plugin MODULE ${AIE_PROFILE_PLUGIN_FILES} ${AIE_PROFILE_UTIL_FILES})
+
+  add_dependencies(xdp_aie_profile_plugin xdp_core xrt_coreutil)
+  target_link_libraries(xdp_aie_profile_plugin PRIVATE xdp_core xrt_coreutil xaiengine)
+  target_compile_definitions(xdp_aie_profile_plugin PRIVATE XDP_VE2_BUILD=1 FAL_LINUX="on")
+
+  set_target_properties(xdp_aie_profile_plugin PROPERTIES VERSION ${XRT_VERSION_STRING} SOVERSION ${XRT_SOVERSION})
+
+  install (TARGETS xdp_aie_profile_plugin
+    LIBRARY DESTINATION ${XDP_PLUGIN_INSTALL_DIR}
+  )
+
+elseif (XDP_CLIENT_BUILD_CMAKE STREQUAL "yes")
   add_library(xdp_aie_profile_plugin MODULE ${AIE_PROFILE_PLUGIN_FILES} ${AIE_DRIVER_COMMON_UTIL_FILES})
   add_dependencies(xdp_aie_profile_plugin xdp_core xrt_coreutil)
   target_link_libraries(xdp_aie_profile_plugin PRIVATE xdp_core xrt_coreutil xaiengine)
@@ -45,7 +60,6 @@ if (XDP_CLIENT_BUILD_CMAKE STREQUAL "yes")
   install (TARGETS xdp_aie_profile_plugin
     LIBRARY DESTINATION ${XDP_PLUGIN_INSTALL_DIR}
   )
-
 
 elseif (${XRT_NATIVE_BUILD} STREQUAL "yes")
   add_library(xdp_aie_profile_plugin MODULE ${AIE_PROFILE_PLUGIN_FILES})
