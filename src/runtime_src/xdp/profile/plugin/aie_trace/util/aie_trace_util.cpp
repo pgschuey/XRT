@@ -50,11 +50,9 @@ namespace xdp::aie::trace {
   {
     std::map<std::string, std::vector<XAie_Events>> eventSets;
     eventSets = {
-        {"functions", 
-         {XAIE_EVENT_INSTR_CALL_CORE, XAIE_EVENT_INSTR_RETURN_CORE}}
+      {"functions",  {XAIE_EVENT_INSTR_CALL_CORE, XAIE_EVENT_INSTR_RETURN_CORE}}
     };
 
-    // Added in 2024.1
     eventSets["partial_stalls"]           = eventSets["functions"];
     eventSets["all_stalls"]               = eventSets["functions"];
     eventSets["all_dma"]                  = eventSets["functions"];
@@ -64,14 +62,10 @@ namespace xdp::aie::trace {
     eventSets["all_stalls_s2mm"]          = eventSets["functions"];
     eventSets["all_stalls_mm2s"]          = eventSets["functions"];
 
-    if (hwGen > 1) {
+    if (hwGen > XAIE_DEV_GEN_AIE) {
       eventSets["s2mm_channels_stalls"]   = eventSets["functions"];
       eventSets["mm2s_channels_stalls"]   = eventSets["functions"];
     }
-
-    // Deprecated after 2024.1
-    eventSets["functions_partial_stalls"] = eventSets["partial_stalls"];
-    eventSets["functions_all_stalls"]     = eventSets["all_stalls"];
     return eventSets;
   }
 
@@ -120,7 +114,7 @@ namespace xdp::aie::trace {
     // Generation-specific sets
     //   * AIE2+ supports all eight trace events (AIE1 requires one for counter)
     //   * Sets w/ DMA stall/backpressure events not supported on AIE1
-    if (hwGen > 1) {
+    if (hwGen > XAIE_DEV_GEN_AIE) {
       eventSets["all_stalls_s2mm"].push_back(XAIE_EVENT_CASCADE_STALL_CORE);
 
       eventSets["s2mm_channels_stalls"] =
@@ -150,7 +144,7 @@ namespace xdp::aie::trace {
   std::map<std::string, std::vector<XAie_Events>> 
   getMemoryTileEventSets(int hwGen)
   {
-    if (hwGen == 1)
+    if (hwGen == XAIE_DEV_GEN_AIE)
       return {};
       
     std::map<std::string, std::vector<XAie_Events>> eventSets;
@@ -185,16 +179,14 @@ namespace xdp::aie::trace {
           XAIE_EVENT_CONFLICT_DM_BANK_14_MEM_TILE,         XAIE_EVENT_CONFLICT_DM_BANK_15_MEM_TILE}}
     };
 
-//#ifdef XDP_CLIENT_BUILD
     // Banks 16-23 are not defined for all generations
-//    if (hwGen >= 40) {
-//      eventSets["memory_conflicts3"] = {
-//          XAIE_EVENT_CONFLICT_DM_BANK_16_MEM_TILE,         XAIE_EVENT_CONFLICT_DM_BANK_17_MEM_TILE,
-//          XAIE_EVENT_CONFLICT_DM_BANK_18_MEM_TILE,         XAIE_EVENT_CONFLICT_DM_BANK_19_MEM_TILE,
-//          XAIE_EVENT_CONFLICT_DM_BANK_20_MEM_TILE,         XAIE_EVENT_CONFLICT_DM_BANK_21_MEM_TILE,
-//          XAIE_EVENT_CONFLICT_DM_BANK_22_MEM_TILE,         XAIE_EVENT_CONFLICT_DM_BANK_23_MEM_TILE};
-//    }
-//#endif
+    if (hwGen >= XAIE_DEV_GEN_AIE4_SOUNDWAVE) {
+      eventSets["memory_conflicts3"] = {
+          XAIE_EVENT_CONFLICT_DM_BANK_16_MEM_TILE,         XAIE_EVENT_CONFLICT_DM_BANK_17_MEM_TILE,
+          XAIE_EVENT_CONFLICT_DM_BANK_18_MEM_TILE,         XAIE_EVENT_CONFLICT_DM_BANK_19_MEM_TILE,
+          XAIE_EVENT_CONFLICT_DM_BANK_20_MEM_TILE,         XAIE_EVENT_CONFLICT_DM_BANK_21_MEM_TILE,
+          XAIE_EVENT_CONFLICT_DM_BANK_22_MEM_TILE,         XAIE_EVENT_CONFLICT_DM_BANK_23_MEM_TILE};
+    }
 
     eventSets["s2mm_channels"]        = eventSets["input_channels"];
     eventSets["s2mm_channels_stalls"] = eventSets["input_channels_stalls"];
@@ -233,7 +225,7 @@ namespace xdp::aie::trace {
           XAIE_EVENT_PORT_RUNNING_3_PL,                     XAIE_EVENT_PORT_STALLED_3_PL}}
     };
 
-    if (hwGen == 1) {
+    if (hwGen == XAIE_DEV_GEN_AIE) {
       eventSets["input_ports_details"] = {
           XAIE_EVENT_DMA_MM2S_0_START_BD_PL,               XAIE_EVENT_DMA_MM2S_0_FINISHED_BD_PL,
           XAIE_EVENT_DMA_MM2S_0_STALLED_LOCK_ACQUIRE_PL,
@@ -245,8 +237,7 @@ namespace xdp::aie::trace {
           XAIE_EVENT_DMA_S2MM_1_START_BD_PL,               XAIE_EVENT_DMA_S2MM_1_FINISHED_BD_PL,
           XAIE_EVENT_DMA_S2MM_1_STALLED_LOCK_ACQUIRE_PL};
     }
-#ifdef XDP_VE2_BUILD
-    else if (hwGen == 5) {
+    else if (hwGen == XAIE_DEV_GEN_AIE2PS) {
       eventSets["input_ports_details"] = {
           XAIE_EVENT_NOC0_DMA_MM2S_0_START_TASK_PL,             XAIE_EVENT_NOC0_DMA_MM2S_0_FINISHED_BD_PL,
           XAIE_EVENT_NOC0_DMA_MM2S_0_FINISHED_TASK_PL,          XAIE_EVENT_NOC0_DMA_MM2S_0_STALLED_LOCK_PL,
@@ -256,7 +247,6 @@ namespace xdp::aie::trace {
           XAIE_EVENT_NOC0_DMA_S2MM_0_FINISHED_TASK_PL,          XAIE_EVENT_NOC0_DMA_S2MM_0_STALLED_LOCK_PL,
           XAIE_EVENT_NOC0_DMA_S2MM_0_STREAM_STARVATION_PL,      XAIE_EVENT_NOC0_DMA_S2MM_0_MEMORY_BACKPRESSURE_PL};
     }
-#endif
     else {
       eventSets["input_ports_details"] = {
           XAIE_EVENT_DMA_MM2S_0_START_TASK_PL,             XAIE_EVENT_DMA_MM2S_0_FINISHED_BD_PL,
@@ -269,13 +259,7 @@ namespace xdp::aie::trace {
     }
 
     // Microcontroller sets
-    if (hwGen >= 5) {
-#ifdef XDP_CLIENT_BUILD
-      eventSets["uc_dma_dm2mm"] = {};
-      eventSets["uc_dma_mm2dm"] = {};
-      eventSets["uc_axis"] = {};
-      eventSets["uc_program_flow"] = {};
-#else
+    if (hwGen >= XAIE_DEV_GEN_AIE2PS) {
       eventSets["uc_dma"] = {
           XAIE_EVENT_DMA_DM2MM_START_TASK_UC,              XAIE_EVENT_DMA_DM2MM_FINISHED_BD_UC,
           XAIE_EVENT_DMA_DM2MM_FINISHED_TASK_UC,           XAIE_EVENT_DMA_MM2DM_START_TASK_UC,
@@ -296,7 +280,6 @@ namespace xdp::aie::trace {
 	        XAIE_EVENT_CORE_JUMP_TAKEN_UC,                   XAIE_EVENT_CORE_DATA_READ_UC,
 	        XAIE_EVENT_CORE_DATA_WRITE_UC,                   XAIE_EVENT_CORE_STREAM_GET_UC,
 	        XAIE_EVENT_CORE_STREAM_PUT_UC};
-#endif
     }
     else {
       eventSets["uc_dma_dm2mm"] = {};
@@ -334,7 +317,7 @@ namespace xdp::aie::trace {
    ***************************************************************************/
   std::vector<XAie_Events> getCoreCounterStartEvents(int hwGen, std::string scheme)
   {
-    if (hwGen > 1)
+    if (hwGen > XAIE_DEV_GEN_AIE)
       return {};
 
     std::vector<XAie_Events> startEvents;
@@ -350,7 +333,7 @@ namespace xdp::aie::trace {
    ***************************************************************************/
   std::vector<XAie_Events> getCoreCounterEndEvents(int hwGen, std::string scheme)
   {
-    if (hwGen > 1)
+    if (hwGen > XAIE_DEV_GEN_AIE)
       return {};
 
     std::vector<XAie_Events> endEvents;
@@ -370,7 +353,7 @@ namespace xdp::aie::trace {
    ***************************************************************************/
   std::vector<uint32_t> getCoreCounterEventValues(int hwGen, std::string scheme)
   {
-    if (hwGen > 1)
+    if (hwGen > XAIE_DEV_GEN_AIE)
       return {};
 
     std::vector<uint32_t> eventValues;
@@ -386,7 +369,7 @@ namespace xdp::aie::trace {
    ***************************************************************************/
   std::vector<XAie_Events> getMemoryCounterStartEvents(int hwGen, std::string scheme)
   {
-    if (hwGen > 1)
+    if (hwGen > XAIE_DEV_GEN_AIE)
       return {};
 
     std::vector<XAie_Events> startEvents;
@@ -402,7 +385,7 @@ namespace xdp::aie::trace {
    ***************************************************************************/
   std::vector<XAie_Events> getMemoryCounterEndEvents(int hwGen, std::string scheme)
   {
-    if (hwGen > 1)
+    if (hwGen > XAIE_DEV_GEN_AIE)
       return {};
 
     std::vector<XAie_Events> endEvents;
@@ -422,7 +405,7 @@ namespace xdp::aie::trace {
    ***************************************************************************/
   std::vector<uint32_t> getMemoryCounterEventValues(int hwGen, std::string scheme)
   {
-    if (hwGen > 1)
+    if (hwGen > XAIE_DEV_GEN_AIE)
       return {};
 
     std::vector<uint32_t> eventValues;

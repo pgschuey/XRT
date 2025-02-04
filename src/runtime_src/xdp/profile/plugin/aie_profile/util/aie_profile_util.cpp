@@ -59,7 +59,7 @@ namespace xdp::aie::profile {
                                    XAIE_EVENT_USER_EVENT_0_CORE,         XAIE_EVENT_USER_EVENT_1_CORE}}
     };
 
-    if (hwGen == 1) {
+    if (hwGen == XAIE_DEV_GEN_AIE) {
       eventSets["floating_point"]   = {XAIE_EVENT_FP_OVERFLOW_CORE,    XAIE_EVENT_FP_UNDERFLOW_CORE,
                                        XAIE_EVENT_FP_INVALID_CORE,     XAIE_EVENT_FP_DIV_BY_ZERO_CORE};
     } else {
@@ -84,7 +84,7 @@ namespace xdp::aie::profile {
       {"dma_locks",               {XAIE_EVENT_GROUP_DMA_ACTIVITY_MEM,    XAIE_EVENT_GROUP_LOCK_MEM}}
     };
 
-    if (hwGen == 1) {
+    if (hwGen == XAIE_DEV_GEN_AIE) {
       eventSets["dma_stalls_s2mm"]  = {XAIE_EVENT_DMA_S2MM_0_STALLED_LOCK_ACQUIRE_MEM,
                                        XAIE_EVENT_DMA_S2MM_1_STALLED_LOCK_ACQUIRE_MEM};
       eventSets["dma_stalls_mm2s"]  = {XAIE_EVENT_DMA_MM2S_0_STALLED_LOCK_ACQUIRE_MEM,
@@ -121,14 +121,13 @@ namespace xdp::aie::profile {
       {METRIC_LATENCY,              {XAIE_EVENT_PORT_RUNNING_0_PL,     XAIE_EVENT_PORT_RUNNING_0_PL}},
     };
 
-    if (hwGen == 1) {
+    if (hwGen == XAIE_DEV_GEN_AIE) {
       eventSets["input_stalls"]   = {XAIE_EVENT_PORT_STALLED_0_PL, 
                                      XAIE_EVENT_PORT_IDLE_0_PL};
       eventSets["output_stalls"]  = {XAIE_EVENT_PORT_STALLED_0_PL, 
                                      XAIE_EVENT_PORT_IDLE_0_PL};
     }
-#ifdef XDP_VE2_BUILD
-    else if (hwGen == 5) {
+    else if (hwGen == XAIE_DEV_GEN_AIE2PS) {
       eventSets["input_stalls"]   = {XAIE_EVENT_NOC0_DMA_MM2S_0_STREAM_BACKPRESSURE_PL, 
                                      XAIE_EVENT_NOC0_DMA_MM2S_0_MEMORY_STARVATION_PL};
       eventSets["output_stalls"]  = {XAIE_EVENT_NOC0_DMA_S2MM_0_MEMORY_BACKPRESSURE_PL, 
@@ -136,7 +135,6 @@ namespace xdp::aie::profile {
       eventSets["input_throughputs"] = {XAIE_EVENT_NOC0_GROUP_DMA_ACTIVITY_PL, XAIE_EVENT_PORT_RUNNING_0_PL};
       eventSets["output_throughputs"] = {XAIE_EVENT_NOC0_GROUP_DMA_ACTIVITY_PL, XAIE_EVENT_PORT_RUNNING_0_PL};
     }
-#endif
     else {
       eventSets["input_stalls"]   = {XAIE_EVENT_DMA_MM2S_0_STREAM_BACKPRESSURE_PL, 
                                      XAIE_EVENT_DMA_MM2S_0_MEMORY_STARVATION_PL};
@@ -145,26 +143,7 @@ namespace xdp::aie::profile {
     }
 
     // Microcontroller sets
-    if (hwGen >= 5) {
-#ifdef XDP_CLIENT_BUILD
-      // eventSets["uc_dma_activity"] = {
-      //     XAIE_EVENT_UC_DMA_DM2MM_A_FINISHED_BD,           XAIE_EVENT_UC_DMA_DM2MM_A_LOCAL_MEMORY_STARVATION,
-	    //     XAIE_EVENT_UC_DMA_DM2MM_A_REMOTE_MEMORY_BACKPRESSURE,
-      //     XAIE_EVENT_UC_DMA_MM2DM_A_FINISHED_BD,           XAIE_EVENT_UC_DMA_MM2DM_A_LOCAL_MEMORY_STARVATION,
-	    //     XAIE_EVENT_UC_DMA_MM2DM_A_REMOTE_MEMORY_BACKPRESSURE};
-      // eventSets["uc_axis_throughputs"] = {
-      //     XAIE_EVENT_UC_CORE_AXIS_MASTER_RUNNING,          XAIE_EVENT_UC_CORE_AXIS_MASTER_STALLED,
-      //     XAIE_EVENT_UC_CORE_AXIS_MASTER_TLAST,
-	    //     XAIE_EVENT_UC_CORE_AXIS_SLAVE_RUNNING,           XAIE_EVENT_UC_CORE_AXIS_SLAVE_STALLED,
-      //     XAIE_EVENT_UC_CORE_AXIS_SLAVE_TLAST};
-      // eventSets["uc_core"] = {
-      //     XAIE_EVENT_UC_CORE_REG_WRITE,                    XAIE_EVENT_UC_CORE_JUMP_TAKEN,
-      //     XAIE_EVENT_UC_CORE_DATA_READ,                    XAIE_EVENT_UC_CORE_DATA_WRITE,
-      //     XAIE_EVENT_UC_CORE_STREAM_GET,                   XAIE_EVENT_UC_CORE_STREAM_PUT};
-      eventSets["uc_dma_activity"] = {};
-      eventSets["uc_axis_throughputs"] = {};
-      eventSets["uc_core"] = {};
-#else
+    if (hwGen >= XAIE_DEV_GEN_AIE2PS) {
       eventSets["uc_dma_activity"] = {
           XAIE_EVENT_DMA_DM2MM_FINISHED_BD_UC,             XAIE_EVENT_DMA_DM2MM_LOCAL_MEMORY_STARVATION_UC,
 	        XAIE_EVENT_DMA_DM2MM_REMOTE_MEMORY_BACKPRESSURE_UC,
@@ -179,7 +158,6 @@ namespace xdp::aie::profile {
           XAIE_EVENT_CORE_REG_WRITE_UC,                    XAIE_EVENT_CORE_JUMP_TAKEN_UC,
           XAIE_EVENT_CORE_DATA_READ_UC,                    XAIE_EVENT_CORE_DATA_WRITE_UC,
           XAIE_EVENT_CORE_STREAM_GET_UC,                   XAIE_EVENT_CORE_STREAM_PUT_UC};
-#endif
     }
     else {
       eventSets["uc_dma_activity"] = {};
@@ -235,7 +213,7 @@ namespace xdp::aie::profile {
                                    XAIE_EVENT_DMA_MM2S_SEL0_STALLED_LOCK_ACQUIRE_MEM_TILE}}
     };
 
-    if (hwGen < 40) {
+    if (hwGen < XAIE_DEV_GEN_AIE4_SOUNDWAVE) {
       eventSets["conflict_stats1"] = {
         XAIE_EVENT_CONFLICT_DM_BANK_0_MEM_TILE,            XAIE_EVENT_CONFLICT_DM_BANK_1_MEM_TILE,
         XAIE_EVENT_CONFLICT_DM_BANK_2_MEM_TILE,            XAIE_EVENT_CONFLICT_DM_BANK_3_MEM_TILE};
@@ -256,20 +234,14 @@ namespace xdp::aie::profile {
         XAIE_EVENT_CONFLICT_DM_BANK_6_MEM_TILE,            XAIE_EVENT_CONFLICT_DM_BANK_7_MEM_TILE,
         XAIE_EVENT_CONFLICT_DM_BANK_8_MEM_TILE,            XAIE_EVENT_CONFLICT_DM_BANK_9_MEM_TILE,
         XAIE_EVENT_CONFLICT_DM_BANK_10_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_11_MEM_TILE};
-#ifdef XDP_CLIENT_BUILD
       // Banks 16-23 are not defined for all generations
-      // eventSets["conflict_stats2"] = {
-      //   XAIE_EVENT_CONFLICT_DM_BANK_12_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_13_MEM_TILE,
-      //   XAIE_EVENT_CONFLICT_DM_BANK_14_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_15_MEM_TILE,
-      //   XAIE_EVENT_CONFLICT_DM_BANK_16_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_17_MEM_TILE,
-      //   XAIE_EVENT_CONFLICT_DM_BANK_18_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_19_MEM_TILE,
-      //   XAIE_EVENT_CONFLICT_DM_BANK_20_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_21_MEM_TILE,
-      //   XAIE_EVENT_CONFLICT_DM_BANK_22_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_23_MEM_TILE};
-#else
       eventSets["conflict_stats2"] = {
         XAIE_EVENT_CONFLICT_DM_BANK_12_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_13_MEM_TILE,
-        XAIE_EVENT_CONFLICT_DM_BANK_14_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_15_MEM_TILE};
-#endif
+        XAIE_EVENT_CONFLICT_DM_BANK_14_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_15_MEM_TILE,
+        XAIE_EVENT_CONFLICT_DM_BANK_16_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_17_MEM_TILE,
+        XAIE_EVENT_CONFLICT_DM_BANK_18_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_19_MEM_TILE,
+        XAIE_EVENT_CONFLICT_DM_BANK_20_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_21_MEM_TILE,
+        XAIE_EVENT_CONFLICT_DM_BANK_22_MEM_TILE,           XAIE_EVENT_CONFLICT_DM_BANK_23_MEM_TILE};
       eventSets["conflict_stats3"] = {};
       eventSets["conflict_stats4"] = {};
     }
@@ -292,7 +264,7 @@ namespace xdp::aie::profile {
   {
     //std::map<std::string, std::vector<XAie_Events>> eventSets;
     std::map<std::string, std::vector<uint32_t>> eventSets;
-    if (hwGen < 5)
+    if (hwGen < XAIE_DEV_GEN_AIE2PS)
       return eventSets;
 
     // TODO: replace with enums once driver supports the MDM
@@ -397,7 +369,7 @@ namespace xdp::aie::profile {
     // Modify events based on channel number
     if (channel > 0) {
       // Interface tiles
-#ifdef XDP_VE2_BUILD
+      // VE2 devices
       std::replace(events.begin(), events.end(), 
           XAIE_EVENT_NOC0_DMA_S2MM_0_MEMORY_BACKPRESSURE_PL,  XAIE_EVENT_NOC0_DMA_S2MM_1_MEMORY_BACKPRESSURE_PL);
       std::replace(events.begin(), events.end(), 
@@ -406,7 +378,7 @@ namespace xdp::aie::profile {
           XAIE_EVENT_NOC0_DMA_MM2S_0_STREAM_BACKPRESSURE_PL,  XAIE_EVENT_NOC0_DMA_MM2S_1_STREAM_BACKPRESSURE_PL);
       std::replace(events.begin(), events.end(), 
           XAIE_EVENT_NOC0_DMA_MM2S_0_MEMORY_STARVATION_PL,    XAIE_EVENT_NOC0_DMA_MM2S_1_MEMORY_STARVATION_PL);
-#else
+      // All other devices
       std::replace(events.begin(), events.end(), 
           XAIE_EVENT_DMA_S2MM_0_MEMORY_BACKPRESSURE_PL,       XAIE_EVENT_DMA_S2MM_1_MEMORY_BACKPRESSURE_PL);
       std::replace(events.begin(), events.end(), 
@@ -415,7 +387,6 @@ namespace xdp::aie::profile {
           XAIE_EVENT_DMA_MM2S_0_STREAM_BACKPRESSURE_PL,       XAIE_EVENT_DMA_MM2S_1_STREAM_BACKPRESSURE_PL);
       std::replace(events.begin(), events.end(), 
           XAIE_EVENT_DMA_MM2S_0_MEMORY_STARVATION_PL,         XAIE_EVENT_DMA_MM2S_1_MEMORY_STARVATION_PL);
-#endif
     }
   }
 

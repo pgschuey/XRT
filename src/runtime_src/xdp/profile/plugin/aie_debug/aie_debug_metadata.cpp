@@ -60,13 +60,13 @@ namespace xdp {
 
     // Get generation-specific register locations
     auto hwGen = getHardwareGen();
-    if (hwGen == 1) {
+    if (hwGen == XAIE_DEV_GEN_AIE) {
       usedRegisters = std::make_unique<AIE1UsedRegisters>();
     }
-    else if (hwGen == 5) {
+    else if (hwGen == XAIE_DEV_GEN_AIE2PS) {
       usedRegisters = std::make_unique<AIE2psUsedRegisters>();
     }
-    else if ((hwGen > 1) && (hwGen < 10)) {
+    else if ((hwGen > XAIE_DEV_GEN_AIE) && (hwGen <= XAIE_DEV_GEN_AIE2P_STRIX_B0)) {
       usedRegisters = std::make_unique<AIE2UsedRegisters>();
     }
   }
