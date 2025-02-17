@@ -34,31 +34,12 @@ namespace xdp {
     public:
       AieTrace_WinImpl(VPDatabase* database, std::shared_ptr<AieTraceMetadata> metadata);
       ~AieTrace_WinImpl() = default;
+      
       virtual void updateDevice();
       virtual void flushTraceModules();
-      virtual void freeResources();
       virtual void pollTimers(uint64_t index, void* handle);
-      virtual uint64_t checkTraceBufSize(uint64_t size);
-
-      void modifyEvents(module_type type, io_type subtype, 
-                        const std::string metricSet, uint8_t channel, 
-                        std::vector<XAie_Events>& events);
       bool setMetricsSettings(uint64_t deviceId, void* handle);
-      bool configureWindowedEventTrace(void* handle);
-      void build2ChannelBroadcastNetwork(void *handle, uint8_t broadcastId1, uint8_t broadcastId2, XAie_Events event);
-      void reset2ChannelBroadcastNetwork(void *handle, uint8_t broadcastId1, uint8_t broadcastId2);
-      module_type getTileType(uint8_t row);
-      uint16_t getRelativeRow(uint16_t absRow);
-      uint32_t bcIdToEvent(int bcId);
-      
-      bool isInputSet(const module_type type, const std::string metricSet);
-      bool isStreamSwitchPortEvent(const XAie_Events event);
-      bool isPortRunningEvent(const XAie_Events event);
-      bool isCoreModuleEvent(const XAie_Events event);
-      bool isDmaSet(const std::string metricSet);
-
-      uint8_t getPortNumberFromEvent(XAie_Events event);
-      int8_t getChannelNumberFromEvent(XAie_Events event);
+      bool configWindowedEventTrace(void* handle);
       void configStreamSwitchPorts(const tile_type& tile, const XAie_LocType loc,
                                    const module_type type, const std::string metricSet, 
                                    const uint8_t channel0, const uint8_t channel1,
@@ -66,14 +47,6 @@ namespace xdp {
       std::vector<XAie_Events> configComboEvents(const XAie_LocType loc, const XAie_ModuleType mod, 
                                                  const module_type type, const std::string metricSet, 
                                                  aie_cfg_base& config);
-      void configGroupEvents(const XAie_LocType loc, const XAie_ModuleType mod, 
-                             const module_type type, const std::string metricSet);
-      void configEventSelections(const XAie_LocType loc, const module_type type, 
-                                 const std::string metricSet, const uint8_t channel0,
-                                 const uint8_t channel1, aie_cfg_base& config);
-      void configEdgeEvents(const tile_type& tile, const module_type type,
-                            const std::string metricSet, const XAie_Events event,
-                            const uint8_t channel = 0);
     
     private:
       typedef XAie_Events EventType;

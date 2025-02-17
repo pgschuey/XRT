@@ -37,6 +37,9 @@
 namespace xdp {
   using severity_level = xrt_core::message::severity_level;
 
+  /****************************************************************************
+   * Constructor: AIE trace implementation for client devices
+   ***************************************************************************/
   AieTrace_WinImpl::AieTrace_WinImpl(VPDatabase* database, std::shared_ptr<AieTraceMetadata> metadata)
       : AieTraceImpl(database, metadata)
   {
@@ -63,7 +66,7 @@ namespace xdp {
     memoryTileTraceEndEvent = XAIE_EVENT_USER_EVENT_1_MEM_TILE;
 
     // Interface tile trace is flushed at end of run
-    if(m_trace_start_broadcast)
+    if (m_trace_start_broadcast)
       interfaceTileTraceStartEvent = (XAie_Events) (XAIE_EVENT_BROADCAST_A_0_PL + traceStartBroadcastChId2);
     else
       interfaceTileTraceStartEvent = XAIE_EVENT_TRUE_PL;
@@ -95,122 +98,18 @@ namespace xdp {
     transactionHandler = std::make_unique<aie::ClientTransaction>(context, "AIE Trace Setup");
   }
 
-
-  void AieTrace_WinImpl::build2ChannelBroadcastNetwork(void *hwCtxImpl, uint8_t broadcastId1, uint8_t broadcastId2, XAie_Events event) {
-
-    boost::property_tree::ptree aiePartitionPt = xdp::aie::getAIEPartitionInfoClient(hwCtxImpl);
-    // Currently, assuming only one Hw Context is alive at a time
-    uint8_t startCol = static_cast<uint8_t>(aiePartitionPt.front().second.get<uint64_t>("start_col"));
-    uint8_t numCols  = static_cast<uint8_t>(aiePartitionPt.front().second.get<uint64_t>("num_cols"));
-
-    std::vector<uint8_t> maxRowAtCol(startCol + numCols, 0);
-    for (auto& tileMetric : metadata->getConfigMetrics()) {
-      auto tile       = tileMetric.first;
-      auto col        = tile.col;
-      auto row        = tile.row;
-      maxRowAtCol[startCol + col] = std::max(maxRowAtCol[col], (uint8_t)row);
-    }
-
-    XAie_Events bcastEvent2_PL =  (XAie_Events) (XAIE_EVENT_BROADCAST_A_0_PL + broadcastId2);
-    XAie_EventBroadcast(&aieDevInst, XAie_TileLoc(startCol, 0), XAIE_PL_MOD, broadcastId2, event);
-
-    for(uint8_t col = startCol; col < startCol + numCols; col++) {
-      for(uint8_t row = 0; row <= maxRowAtCol[col]; row++) {
-        module_type tileType = getTileType(row);
-        auto loc = XAie_TileLoc(col, row);
-
-        if(tileType == module_type::shim) {
-          // first channel is only used to send north
-          if(col == startCol) {
-            XAie_EventBroadcast(&aieDevInst, loc, XAIE_PL_MOD, broadcastId1, event);
-          }
-          else {
-            XAie_EventBroadcast(&aieDevInst, loc, XAIE_PL_MOD, broadcastId1, bcastEvent2_PL);
-          }
-          if(maxRowAtCol[col] != row) {
-            XAie_EventBroadcastBlockDir(&aieDevInst, loc, XAIE_PL_MOD, XAIE_EVENT_SWITCH_A, broadcastId1, XAIE_EVENT_BROADCAST_SOUTH | XAIE_EVENT_BROADCAST_WEST | XAIE_EVENT_BROADCAST_EAST);
-          }
-          else {
-            XAie_EventBroadcastBlockDir(&aieDevInst, loc, XAIE_PL_MOD, XAIE_EVENT_SWITCH_A, broadcastId1, XAIE_EVENT_BROADCAST_SOUTH | XAIE_EVENT_BROADCAST_WEST | XAIE_EVENT_BROADCAST_EAST | XAIE_EVENT_BROADCAST_NORTH);
-          }
-
-          // second channel is only used to send east
-          XAie_EventBroadcastBlockDir(&aieDevInst, loc, XAIE_PL_MOD, XAIE_EVENT_SWITCH_A, broadcastId2, XAIE_EVENT_BROADCAST_SOUTH | XAIE_EVENT_BROADCAST_WEST | XAIE_EVENT_BROADCAST_NORTH);
-          
-          if(col != startCol + numCols - 1) {
-            XAie_EventBroadcastBlockDir(&aieDevInst, loc, XAIE_PL_MOD, XAIE_EVENT_SWITCH_B, broadcastId2, XAIE_EVENT_BROADCAST_SOUTH | XAIE_EVENT_BROADCAST_WEST | XAIE_EVENT_BROADCAST_NORTH);
-          }
-          else {
-            XAie_EventBroadcastBlockDir(&aieDevInst, loc, XAIE_PL_MOD, XAIE_EVENT_SWITCH_B, broadcastId2, XAIE_EVENT_BROADCAST_SOUTH | XAIE_EVENT_BROADCAST_WEST | XAIE_EVENT_BROADCAST_NORTH | XAIE_EVENT_BROADCAST_EAST);
-          }
-        }
-        else if(tileType == module_type::mem_tile) {
-          if(maxRowAtCol[col] != row) {
-            XAie_EventBroadcastBlockDir(&aieDevInst, loc, XAIE_MEM_MOD, XAIE_EVENT_SWITCH_A, broadcastId1, XAIE_EVENT_BROADCAST_SOUTH | XAIE_EVENT_BROADCAST_WEST | XAIE_EVENT_BROADCAST_EAST);
-          }
-          else {
-            XAie_EventBroadcastBlockDir(&aieDevInst, loc, XAIE_MEM_MOD, XAIE_EVENT_SWITCH_A, broadcastId1, XAIE_EVENT_BROADCAST_SOUTH | XAIE_EVENT_BROADCAST_WEST | XAIE_EVENT_BROADCAST_EAST | XAIE_EVENT_BROADCAST_NORTH);
-          }
-        }
-        else { //core tile
-          if(maxRowAtCol[col] != row) {
-            XAie_EventBroadcastBlockDir(&aieDevInst, loc, XAIE_CORE_MOD, XAIE_EVENT_SWITCH_A, broadcastId1, XAIE_EVENT_BROADCAST_SOUTH | XAIE_EVENT_BROADCAST_WEST);
-          }
-          else {
-            XAie_EventBroadcastBlockDir(&aieDevInst, loc, XAIE_CORE_MOD, XAIE_EVENT_SWITCH_A, broadcastId1, XAIE_EVENT_BROADCAST_SOUTH | XAIE_EVENT_BROADCAST_WEST | XAIE_EVENT_BROADCAST_NORTH);
-          }
-          XAie_EventBroadcastBlockDir(&aieDevInst, loc, XAIE_MEM_MOD,  XAIE_EVENT_SWITCH_A, broadcastId1, XAIE_EVENT_BROADCAST_SOUTH | XAIE_EVENT_BROADCAST_WEST | XAIE_EVENT_BROADCAST_EAST | XAIE_EVENT_BROADCAST_NORTH);
-        }
-      }
-    }
-  }
-
-  void AieTrace_WinImpl::reset2ChannelBroadcastNetwork(void *hwCtxImpl, uint8_t broadcastId1, uint8_t broadcastId2) {
-
-    boost::property_tree::ptree aiePartitionPt = xdp::aie::getAIEPartitionInfoClient(hwCtxImpl);
-    // Currently, assuming only one Hw Context is alive at a time
-    uint8_t startCol = static_cast<uint8_t>(aiePartitionPt.front().second.get<uint64_t>("start_col"));
-    uint8_t numCols  = static_cast<uint8_t>(aiePartitionPt.front().second.get<uint64_t>("num_cols"));
-
-    std::vector<uint8_t> maxRowAtCol(startCol + numCols, 0);
-    for (auto& tileMetric : metadata->getConfigMetrics()) {
-      auto tile       = tileMetric.first;
-      auto col        = tile.col;
-      auto row        = tile.row;
-      maxRowAtCol[startCol + col] = std::max(maxRowAtCol[col], (uint8_t)row);
-    }
-
-    XAie_EventBroadcastReset(&aieDevInst, XAie_TileLoc(startCol, 0), XAIE_PL_MOD, broadcastId2);
-
-    for(uint8_t col = startCol; col < startCol + numCols; col++) {
-      for(uint8_t row = 0; row <= maxRowAtCol[col]; row++) {
-        module_type tileType = getTileType(row);
-        auto loc = XAie_TileLoc(col, row);
-
-        if(tileType == module_type::shim) {
-          XAie_EventBroadcastReset(&aieDevInst, loc, XAIE_PL_MOD, broadcastId1);
-          XAie_EventBroadcastUnblockDir(&aieDevInst, loc, XAIE_PL_MOD, XAIE_EVENT_SWITCH_A, broadcastId1, XAIE_EVENT_BROADCAST_ALL);
-          XAie_EventBroadcastUnblockDir(&aieDevInst, loc, XAIE_PL_MOD, XAIE_EVENT_SWITCH_A, broadcastId2, XAIE_EVENT_BROADCAST_ALL);
-          XAie_EventBroadcastUnblockDir(&aieDevInst, loc, XAIE_PL_MOD, XAIE_EVENT_SWITCH_B, broadcastId2, XAIE_EVENT_BROADCAST_ALL);
-        }
-        else if(tileType == module_type::mem_tile) {
-          XAie_EventBroadcastUnblockDir(&aieDevInst, loc, XAIE_MEM_MOD, XAIE_EVENT_SWITCH_A, broadcastId1, XAIE_EVENT_BROADCAST_ALL);
-        }
-        else { //core tile
-          XAie_EventBroadcastUnblockDir(&aieDevInst, loc, XAIE_CORE_MOD, XAIE_EVENT_SWITCH_A, broadcastId1, XAIE_EVENT_BROADCAST_ALL);
-          XAie_EventBroadcastUnblockDir(&aieDevInst, loc, XAIE_MEM_MOD,  XAIE_EVENT_SWITCH_A, broadcastId1, XAIE_EVENT_BROADCAST_ALL);
-        }
-      }
-    }
-  }
-
-  bool AieTrace_WinImpl::configureWindowedEventTrace(void* hwCtxImpl) {
-    //Start recording the transaction
+  /****************************************************************************
+   * Configure windowing
+   ***************************************************************************/
+  bool AieTrace_WinImpl::configWindowedEventTrace(void* hwCtxImpl) 
+  {
+    // Start recording the transaction
     XAie_StartTransaction(&aieDevInst, XAIE_TRANSACTION_DISABLE_AUTO_FLUSH);
 
-    boost::property_tree::ptree aiePartitionPt = xdp::aie::getAIEPartitionInfoClient(hwCtxImpl);
-    // Currently, assuming only one Hw Context is alive at a time
+    // Assuming only one HW context is alive at a time
+    auto aiePartitionPt = xdp::aie::getAIEPartitionInfoClient(hwCtxImpl);
     uint8_t startCol = static_cast<uint8_t>(aiePartitionPt.front().second.get<uint64_t>("start_col"));
+    uint8_t numCols  = static_cast<uint8_t>(aiePartitionPt.front().second.get<uint64_t>("num_cols"));
 
     XAie_Events bcastEvent2_PL = (XAie_Events) (XAIE_EVENT_BROADCAST_A_0_PL + traceStartBroadcastChId2);
     XAie_Events shimTraceStartEvent = bcastEvent2_PL;
@@ -225,11 +124,11 @@ namespace xdp {
       auto tile       = tileMetric.first;
       auto col        = tile.col;
       auto row        = tile.row;
-      auto tileType   = getTileType(row);
+      auto tileType   = aie::getModuleType(row, metadata->getRowOffset());
       auto loc        = XAie_TileLoc(col, row);
-      if(tileType == module_type::shim) {
-        if(startLayer != UINT_MAX) {
-          if(col == startCol) 
+      if (tileType == module_type::shim) {
+        if (startLayer != UINT_MAX) {
+          if (col == startCol) 
             XAie_TraceStartEvent(&aieDevInst, loc, XAIE_PL_MOD, XAIE_EVENT_PERF_CNT_0_PL);
           else 
             XAie_TraceStartEvent(&aieDevInst, loc, XAIE_PL_MOD, shimTraceStartEvent);
@@ -247,12 +146,13 @@ namespace xdp {
       }
     }
 
-    if(startLayer != UINT_MAX) {
+    if (startLayer != UINT_MAX) {
       XAie_PerfCounterControlSet(&aieDevInst, XAie_TileLoc(startCol, 0), XAIE_PL_MOD, 0, XAIE_EVENT_USER_EVENT_0_PL, XAIE_EVENT_USER_EVENT_0_PL);
       XAie_PerfCounterEventValueSet(&aieDevInst, XAie_TileLoc(startCol, 0), XAIE_PL_MOD, 0, startLayer);
     }
 
-    build2ChannelBroadcastNetwork(hwCtxImpl, traceStartBroadcastChId1, traceStartBroadcastChId2, XAIE_EVENT_PERF_CNT_0_PL);
+    aie::trace::build2ChannelBroadcastNetwork(&aieDevInst, metadata, traceStartBroadcastChId1, 
+      traceStartBroadcastChId2, XAIE_EVENT_PERF_CNT_0_PL, startCol, numCols);
 
     uint8_t *txn_ptr = XAie_ExportSerializedTransaction(&aieDevInst, 1, 0);
 
@@ -269,6 +169,9 @@ namespace xdp {
     return true;
   }
 
+  /****************************************************************************
+   * Update device
+   ***************************************************************************/
   void AieTrace_WinImpl::updateDevice()
   {
     xrt_core::message::send(severity_level::info, "XRT", "Calling AIE Trace IPU updateDevice.");
@@ -283,8 +186,8 @@ namespace xdp {
       xrt_core::message::send(severity_level::warning, "XRT", msg);
       return;
     }
-    if(xrt_core::config::get_aie_trace_settings_start_type() == "layer") {
-      if (!configureWindowedEventTrace(metadata->getHandle())) {
+    if (xrt_core::config::get_aie_trace_settings_start_type() == "layer") {
+      if (!configWindowedEventTrace(metadata->getHandle())) {
         std::string msg("Unable to configure AIE Windowed event trace");
         xrt_core::message::send(severity_level::warning, "XRT", msg);
         return;
@@ -292,63 +195,16 @@ namespace xdp {
     }
   }
 
-  // No CMA checks on Win
-  uint64_t AieTrace_WinImpl::checkTraceBufSize(uint64_t size)
-  {
-    return size;
-  }
-
   /****************************************************************************
-   * Modify events in metric set based on type and channel
+   * Force flush of trace modules
    ***************************************************************************/
-  void AieTrace_WinImpl::modifyEvents(module_type type, io_type subtype, 
-                                      const std::string metricSet, uint8_t channel, 
-                                      std::vector<XAie_Events>& events)
-  {
-    // Only needed for GMIO DMA channel 1
-    if ((type != module_type::shim) || (subtype == io_type::PLIO) || (channel == 0))
-      return;
-
-    // Check type to minimize replacements
-    if (isInputSet(type, metricSet)) {
-      // Input or MM2S
-      std::replace(events.begin(), events.end(), 
-          XAIE_EVENT_DMA_MM2S_0_START_TASK_PL,          XAIE_EVENT_DMA_MM2S_1_START_TASK_PL);
-      std::replace(events.begin(), events.end(), 
-          XAIE_EVENT_DMA_MM2S_0_FINISHED_BD_PL,         XAIE_EVENT_DMA_MM2S_1_FINISHED_BD_PL);
-      std::replace(events.begin(), events.end(), 
-          XAIE_EVENT_DMA_MM2S_0_FINISHED_TASK_PL,       XAIE_EVENT_DMA_MM2S_1_FINISHED_TASK_PL);
-      std::replace(events.begin(), events.end(), 
-          XAIE_EVENT_DMA_MM2S_0_STALLED_LOCK_PL,        XAIE_EVENT_DMA_MM2S_1_STALLED_LOCK_PL);
-      std::replace(events.begin(), events.end(), 
-          XAIE_EVENT_DMA_MM2S_0_STREAM_BACKPRESSURE_PL, XAIE_EVENT_DMA_MM2S_1_STREAM_BACKPRESSURE_PL);
-      std::replace(events.begin(), events.end(), 
-          XAIE_EVENT_DMA_MM2S_0_MEMORY_STARVATION_PL,   XAIE_EVENT_DMA_MM2S_1_MEMORY_STARVATION_PL);
-    }
-    else {
-      // Output or S2MM
-      std::replace(events.begin(), events.end(), 
-          XAIE_EVENT_DMA_S2MM_0_START_TASK_PL,          XAIE_EVENT_DMA_S2MM_1_START_TASK_PL);
-      std::replace(events.begin(), events.end(), 
-          XAIE_EVENT_DMA_S2MM_0_FINISHED_BD_PL,         XAIE_EVENT_DMA_S2MM_1_FINISHED_BD_PL);
-      std::replace(events.begin(), events.end(), 
-          XAIE_EVENT_DMA_S2MM_0_FINISHED_TASK_PL,       XAIE_EVENT_DMA_S2MM_1_FINISHED_TASK_PL);
-      std::replace(events.begin(), events.end(), 
-          XAIE_EVENT_DMA_S2MM_0_STALLED_LOCK_PL,        XAIE_EVENT_DMA_S2MM_1_STALLED_LOCK_PL);
-      std::replace(events.begin(), events.end(), 
-          XAIE_EVENT_DMA_S2MM_0_STREAM_STARVATION_PL,   XAIE_EVENT_DMA_S2MM_1_STREAM_STARVATION_PL);
-      std::replace(events.begin(), events.end(), 
-          XAIE_EVENT_DMA_S2MM_0_MEMORY_BACKPRESSURE_PL, XAIE_EVENT_DMA_S2MM_1_MEMORY_BACKPRESSURE_PL);
-    }
-  }
-
   void AieTrace_WinImpl::flushTraceModules()
   {
     if (traceFlushLocs.empty() && memoryTileTraceFlushLocs.empty() 
         && interfaceTileTraceFlushLocs.empty())
       return;
 
-    if (xrt_core::config::get_verbosity() >= static_cast<uint32_t>(severity_level::info)) {
+    if (aie::isInfoVerbosity()) {
       std::stringstream msg;
       msg << "Flushing AIE trace by forcing end event for " << traceFlushLocs.size()
           << " AIE tiles, " << memoryTileTraceFlushLocs.size() << " memory tiles, and " 
@@ -379,244 +235,17 @@ namespace xdp {
       return;
 
     XAie_ClearTransaction(&aieDevInst);
-    xrt_core::message::send(severity_level::info, "XRT", "Successfully scheduled AIE trace flush transaction.");
+    xrt_core::message::send(severity_level::info, "XRT", 
+      "Successfully scheduled AIE trace flush transaction.");
   }
 
+  /****************************************************************************
+   * Poll timers (NOTE: needed for system timeline only)
+   ***************************************************************************/
   void AieTrace_WinImpl::pollTimers(uint64_t index, void* handle) 
   {
-    // TODO: Poll timers (needed for system timeline only)
     (void)index;
     (void)handle;
-  }
-
-  uint16_t AieTrace_WinImpl::getRelativeRow(uint16_t absRow)
-  {
-    auto rowOffset = metadata->getRowOffset();
-    if (absRow == 0)
-      return 0;
-    if (absRow < rowOffset)
-      return (absRow - 1);
-    return (absRow - rowOffset);
-  }
-
-  module_type AieTrace_WinImpl::getTileType(uint8_t absRow)
-  {
-    if (absRow == 0)
-      return module_type::shim;
-    if (absRow < metadata->getRowOffset())
-      return module_type::mem_tile;
-    return module_type::core;
-  }
-
-  void AieTrace_WinImpl::freeResources() 
-  {
-    // Nothing to do
-  }
-
-  inline uint32_t AieTrace_WinImpl::bcIdToEvent(int bcId)
-  {
-    return bcId + CORE_BROADCAST_EVENT_BASE;
-  }
-
-  bool AieTrace_WinImpl::isInputSet(const module_type type, const std::string metricSet)
-  {
-    // Catch memory tile sets
-    if (type == module_type::mem_tile) {
-      if ((metricSet.find("input") != std::string::npos)
-          || (metricSet.find("s2mm") != std::string::npos))
-        return true;
-      else
-        return false;
-    }
-
-    // Remaining covers interface tiles
-    if ((metricSet.find("input") != std::string::npos)
-        || (metricSet.find("mm2s") != std::string::npos))
-      return true;
-    else
-      return false;
-  }
-
-  bool AieTrace_WinImpl::isStreamSwitchPortEvent(const XAie_Events event)
-  {
-    // AIE tiles
-    if ((event > XAIE_EVENT_GROUP_STREAM_SWITCH_CORE) 
-        && (event < XAIE_EVENT_GROUP_BROADCAST_CORE))
-      return true;
-    // Interface tiles
-    if ((event > XAIE_EVENT_GROUP_STREAM_SWITCH_PL) 
-        && (event < XAIE_EVENT_GROUP_BROADCAST_A_PL))
-      return true;
-    // Memory tiles
-    if ((event > XAIE_EVENT_GROUP_STREAM_SWITCH_MEM_TILE) 
-        && (event < XAIE_EVENT_GROUP_MEMORY_CONFLICT_MEM_TILE))
-      return true;
-
-    return false;
-  }
-
-  bool AieTrace_WinImpl::isPortRunningEvent(const XAie_Events event)
-  {
-    std::set<XAie_Events> runningEvents = {
-      XAIE_EVENT_PORT_RUNNING_0_CORE,     XAIE_EVENT_PORT_RUNNING_1_CORE,
-      XAIE_EVENT_PORT_RUNNING_2_CORE,     XAIE_EVENT_PORT_RUNNING_3_CORE,
-      XAIE_EVENT_PORT_RUNNING_4_CORE,     XAIE_EVENT_PORT_RUNNING_5_CORE,
-      XAIE_EVENT_PORT_RUNNING_6_CORE,     XAIE_EVENT_PORT_RUNNING_7_CORE,
-      XAIE_EVENT_PORT_RUNNING_0_PL,       XAIE_EVENT_PORT_RUNNING_1_PL,
-      XAIE_EVENT_PORT_RUNNING_2_PL,       XAIE_EVENT_PORT_RUNNING_3_PL,
-      XAIE_EVENT_PORT_RUNNING_4_PL,       XAIE_EVENT_PORT_RUNNING_5_PL,
-      XAIE_EVENT_PORT_RUNNING_6_PL,       XAIE_EVENT_PORT_RUNNING_7_PL,
-      XAIE_EVENT_PORT_RUNNING_0_MEM_TILE, XAIE_EVENT_PORT_RUNNING_1_MEM_TILE,
-      XAIE_EVENT_PORT_RUNNING_2_MEM_TILE, XAIE_EVENT_PORT_RUNNING_3_MEM_TILE,
-      XAIE_EVENT_PORT_RUNNING_4_MEM_TILE, XAIE_EVENT_PORT_RUNNING_5_MEM_TILE,
-      XAIE_EVENT_PORT_RUNNING_6_MEM_TILE, XAIE_EVENT_PORT_RUNNING_7_MEM_TILE
-    };
-
-    return (runningEvents.find(event) != runningEvents.end());
-  }
-
-  /****************************************************************************
-   * Check if core module event
-   ***************************************************************************/
-  bool AieTrace_WinImpl::isCoreModuleEvent(const XAie_Events event)
-  {
-    return ((event >= XAIE_EVENT_NONE_CORE) 
-            && (event <= XAIE_EVENT_INSTR_ERROR_CORE));
-  }
-
-  /****************************************************************************
-   * Check if metric set contains DMA events
-   * TODO: Traverse events vector instead of based on name
-   ***************************************************************************/
-  bool AieTrace_WinImpl::isDmaSet(const std::string metricSet)
-  {
-    if ((metricSet.find("dma") != std::string::npos)
-        || (metricSet.find("s2mm") != std::string::npos)
-        || (metricSet.find("mm2s") != std::string::npos))
-      return true;
-    return false;
-  }
-  
-  /****************************************************************************
-   * Get port number based on event
-   ***************************************************************************/
-  uint8_t AieTrace_WinImpl::getPortNumberFromEvent(XAie_Events event)
-  {
-    switch (event) {
-    case XAIE_EVENT_PORT_RUNNING_7_CORE:
-    case XAIE_EVENT_PORT_STALLED_7_CORE:
-    case XAIE_EVENT_PORT_IDLE_7_CORE:
-    case XAIE_EVENT_PORT_RUNNING_7_PL:
-    case XAIE_EVENT_PORT_STALLED_7_PL:
-    case XAIE_EVENT_PORT_IDLE_7_PL:
-      return 7;
-    case XAIE_EVENT_PORT_RUNNING_6_CORE:
-    case XAIE_EVENT_PORT_STALLED_6_CORE:
-    case XAIE_EVENT_PORT_IDLE_6_CORE:
-    case XAIE_EVENT_PORT_RUNNING_6_PL:
-    case XAIE_EVENT_PORT_STALLED_6_PL:
-    case XAIE_EVENT_PORT_IDLE_6_PL:
-      return 6;
-    case XAIE_EVENT_PORT_RUNNING_5_CORE:
-    case XAIE_EVENT_PORT_STALLED_5_CORE:
-    case XAIE_EVENT_PORT_IDLE_5_CORE:
-    case XAIE_EVENT_PORT_RUNNING_5_PL:
-    case XAIE_EVENT_PORT_STALLED_5_PL:
-    case XAIE_EVENT_PORT_IDLE_5_PL:
-      return 5;
-    case XAIE_EVENT_PORT_RUNNING_4_CORE:
-    case XAIE_EVENT_PORT_STALLED_4_CORE:
-    case XAIE_EVENT_PORT_IDLE_4_CORE:
-    case XAIE_EVENT_PORT_RUNNING_4_PL:
-    case XAIE_EVENT_PORT_STALLED_4_PL:
-    case XAIE_EVENT_PORT_IDLE_4_PL:
-      return 4;
-    case XAIE_EVENT_PORT_RUNNING_3_CORE:
-    case XAIE_EVENT_PORT_STALLED_3_CORE:
-    case XAIE_EVENT_PORT_IDLE_3_CORE:
-    case XAIE_EVENT_PORT_RUNNING_3_PL:
-    case XAIE_EVENT_PORT_STALLED_3_PL:
-    case XAIE_EVENT_PORT_IDLE_3_PL:
-      return 3;
-    case XAIE_EVENT_PORT_RUNNING_2_CORE:
-    case XAIE_EVENT_PORT_STALLED_2_CORE:
-    case XAIE_EVENT_PORT_IDLE_2_CORE:
-    case XAIE_EVENT_PORT_RUNNING_2_PL:
-    case XAIE_EVENT_PORT_STALLED_2_PL:
-    case XAIE_EVENT_PORT_IDLE_2_PL:
-      return 2;
-    case XAIE_EVENT_PORT_RUNNING_1_CORE:
-    case XAIE_EVENT_PORT_STALLED_1_CORE:
-    case XAIE_EVENT_PORT_IDLE_1_CORE:
-    case XAIE_EVENT_PORT_RUNNING_1_PL:
-    case XAIE_EVENT_PORT_STALLED_1_PL:
-    case XAIE_EVENT_PORT_IDLE_1_PL:
-      return 1;
-    default:
-      return 0;
-    }
-  }
-
-  /****************************************************************************
-   * Get channel number based on event
-   * NOTE: This only covers AIE Tiles and Interface Tiles
-   ***************************************************************************/
-  int8_t AieTrace_WinImpl::getChannelNumberFromEvent(XAie_Events event)
-  {
-    switch (event) {
-    case XAIE_EVENT_DMA_S2MM_0_START_TASK_MEM:
-    case XAIE_EVENT_DMA_S2MM_0_FINISHED_BD_MEM:
-    case XAIE_EVENT_DMA_S2MM_0_FINISHED_TASK_MEM:
-    case XAIE_EVENT_DMA_S2MM_0_STALLED_LOCK_MEM:
-    case XAIE_EVENT_DMA_S2MM_0_STREAM_STARVATION_MEM:
-    case XAIE_EVENT_DMA_S2MM_0_MEMORY_BACKPRESSURE_MEM:
-    case XAIE_EVENT_DMA_MM2S_0_START_TASK_MEM:
-    case XAIE_EVENT_DMA_MM2S_0_FINISHED_BD_MEM:
-    case XAIE_EVENT_DMA_MM2S_0_FINISHED_TASK_MEM:
-    case XAIE_EVENT_DMA_MM2S_0_STALLED_LOCK_MEM:
-    case XAIE_EVENT_DMA_MM2S_0_STREAM_BACKPRESSURE_MEM:
-    case XAIE_EVENT_DMA_MM2S_0_MEMORY_STARVATION_MEM:
-    case XAIE_EVENT_DMA_S2MM_0_FINISHED_BD_PL:
-    case XAIE_EVENT_DMA_S2MM_0_START_TASK_PL:
-    case XAIE_EVENT_DMA_S2MM_0_FINISHED_TASK_PL:
-    case XAIE_EVENT_DMA_S2MM_0_STALLED_LOCK_PL:
-    case XAIE_EVENT_DMA_S2MM_0_STREAM_STARVATION_PL:
-    case XAIE_EVENT_DMA_S2MM_0_MEMORY_BACKPRESSURE_PL:
-    case XAIE_EVENT_DMA_MM2S_0_FINISHED_BD_PL:
-    case XAIE_EVENT_DMA_MM2S_0_START_TASK_PL:
-    case XAIE_EVENT_DMA_MM2S_0_FINISHED_TASK_PL:
-    case XAIE_EVENT_DMA_MM2S_0_STALLED_LOCK_PL:
-    case XAIE_EVENT_DMA_MM2S_0_STREAM_BACKPRESSURE_PL:
-    case XAIE_EVENT_DMA_MM2S_0_MEMORY_STARVATION_PL:
-      return 0;
-    case XAIE_EVENT_DMA_S2MM_1_START_TASK_MEM:
-    case XAIE_EVENT_DMA_S2MM_1_FINISHED_BD_MEM:
-    case XAIE_EVENT_DMA_S2MM_1_FINISHED_TASK_MEM:
-    case XAIE_EVENT_DMA_S2MM_1_STALLED_LOCK_MEM:
-    case XAIE_EVENT_DMA_S2MM_1_STREAM_STARVATION_MEM:
-    case XAIE_EVENT_DMA_S2MM_1_MEMORY_BACKPRESSURE_MEM:
-    case XAIE_EVENT_DMA_MM2S_1_START_TASK_MEM:
-    case XAIE_EVENT_DMA_MM2S_1_FINISHED_BD_MEM:
-    case XAIE_EVENT_DMA_MM2S_1_FINISHED_TASK_MEM:
-    case XAIE_EVENT_DMA_MM2S_1_STALLED_LOCK_MEM:
-    case XAIE_EVENT_DMA_MM2S_1_STREAM_BACKPRESSURE_MEM:
-    case XAIE_EVENT_DMA_MM2S_1_MEMORY_STARVATION_MEM:
-    case XAIE_EVENT_DMA_S2MM_1_FINISHED_BD_PL:
-    case XAIE_EVENT_DMA_S2MM_1_START_TASK_PL:
-    case XAIE_EVENT_DMA_S2MM_1_FINISHED_TASK_PL:
-    case XAIE_EVENT_DMA_S2MM_1_STALLED_LOCK_PL:
-    case XAIE_EVENT_DMA_S2MM_1_STREAM_STARVATION_PL:
-    case XAIE_EVENT_DMA_S2MM_1_MEMORY_BACKPRESSURE_PL:
-    case XAIE_EVENT_DMA_MM2S_1_FINISHED_BD_PL:
-    case XAIE_EVENT_DMA_MM2S_1_START_TASK_PL:
-    case XAIE_EVENT_DMA_MM2S_1_FINISHED_TASK_PL:
-    case XAIE_EVENT_DMA_MM2S_1_STALLED_LOCK_PL:
-    case XAIE_EVENT_DMA_MM2S_1_STREAM_BACKPRESSURE_PL:
-    case XAIE_EVENT_DMA_MM2S_1_MEMORY_STARVATION_PL:
-      return 1;
-    default:
-      return -1;
-    }
   }
 
   /****************************************************************************
@@ -638,11 +267,11 @@ namespace xdp {
     for (size_t i=0; i < events.size(); ++i) {
       // Ensure applicable event
       auto event = events.at(i);
-      if (!isStreamSwitchPortEvent(event))
+      if (!aie::trace::isStreamSwitchPortEvent(event))
         continue;
 
       //bool newPort = false;
-      auto portnum = getPortNumberFromEvent(event);
+      auto portnum = aie::trace::getPortNumberFromEvent(event);
       uint8_t channelNum = portnum % 2;
       uint8_t channel = (channelNum == 0) ? channel0 : channel1;
 
@@ -703,7 +332,7 @@ namespace xdp {
         }
         else {
           // Memory tiles
-          auto slaveOrMaster = isInputSet(type, metricSet) ? XAIE_STRMSW_MASTER : XAIE_STRMSW_SLAVE;
+          auto slaveOrMaster = aie::isInputSet(type, metricSet) ? XAIE_STRMSW_MASTER : XAIE_STRMSW_SLAVE;
           std::string typeName = (slaveOrMaster == XAIE_STRMSW_MASTER) ? "master" : "slave";
           std::string msg = "Configuring memory tile stream switch to monitor "
                           + typeName + " stream port " + std::to_string(channel);
@@ -747,7 +376,8 @@ namespace xdp {
                                       aie_cfg_base& config)
   {
     // Only needed for core/memory modules and metric sets that include DMA events
-    if (!isDmaSet(metricSet) || ((type != module_type::core) && (type != module_type::dma)))
+    if (!aie::trace::isDmaSet(metricSet) || ((type != module_type::core) 
+        && (type != module_type::dma)))
       return {};
 
     std::vector<XAie_Events> comboEvents;
@@ -791,134 +421,6 @@ namespace xdp {
   }
 
   /****************************************************************************
-   * Configure group events (core modules only)
-   ***************************************************************************/
-  void AieTrace_WinImpl::configGroupEvents(const XAie_LocType loc, const XAie_ModuleType mod, 
-                                           const module_type type, const std::string metricSet)
-  {
-    // Only needed for core module and metric sets that include DMA events
-    if (!isDmaSet(metricSet) || (type != module_type::core))
-      return;
-
-    // Set masks for group events
-    XAie_EventGroupControl(&aieDevInst, loc, mod, XAIE_EVENT_GROUP_CORE_PROGRAM_FLOW_CORE, 
-                           GROUP_CORE_FUNCTIONS_MASK);
-    XAie_EventGroupControl(&aieDevInst, loc, mod, XAIE_EVENT_GROUP_CORE_STALL_CORE, 
-                           GROUP_CORE_STALL_MASK);
-    XAie_EventGroupControl(&aieDevInst, loc, mod, XAIE_EVENT_GROUP_STREAM_SWITCH_CORE, 
-                           GROUP_STREAM_SWITCH_RUNNING_MASK);
-  }
-
-  /****************************************************************************
-   * Configure event selection (memory tiles only)
-   ***************************************************************************/
-  void AieTrace_WinImpl::configEventSelections(const XAie_LocType loc, const module_type type,
-                                               const std::string metricSet, const uint8_t channel0,
-                                               const uint8_t channel1, aie_cfg_base& config)
-  {
-    if (type != module_type::mem_tile)
-      return;
-
-    XAie_DmaDirection dmaDir = isInputSet(type, metricSet) ? DMA_S2MM : DMA_MM2S;
-
-    if (aie::isDebugVerbosity()) {
-      std::string typeName = (dmaDir == DMA_S2MM) ? "S2MM" : "MM2S";
-      std::string msg = "Configuring memory tile event selections to DMA " 
-                      + typeName + " channels " + std::to_string(channel0) 
-                      + " and " + std::to_string(channel1);
-      xrt_core::message::send(severity_level::debug, "XRT", msg);
-    }
-
-    XAie_EventSelectDmaChannel(&aieDevInst, loc, 0, dmaDir, channel0);
-    XAie_EventSelectDmaChannel(&aieDevInst, loc, 1, dmaDir, channel1);
-
-    // Record for runtime config file
-    config.port_trace_ids[0] = channel0;
-    config.port_trace_ids[1] = channel1;
-    if (aie::isInputSet(type, metricSet)) {
-      config.port_trace_is_master[0] = true;
-      config.port_trace_is_master[1] = true;
-      config.s2mm_channels[0] = channel0;
-      if (channel0 != channel1)
-        config.s2mm_channels[1] = channel1;
-    } 
-    else {
-      config.port_trace_is_master[0] = false;
-      config.port_trace_is_master[1] = false;
-      config.mm2s_channels[0] = channel0;
-      if (channel0 != channel1)
-        config.mm2s_channels[1] = channel1;
-    }
-  }
-
-  /****************************************************************************
-   * Configure edge detection events
-   ***************************************************************************/
-  void AieTrace_WinImpl::configEdgeEvents(const tile_type& tile, const module_type type,
-                                          const std::string metricSet, const XAie_Events event,
-                                          const uint8_t channel)
-  {
-    if ((event != XAIE_EVENT_EDGE_DETECTION_EVENT_0_MEM_TILE)
-        && (event != XAIE_EVENT_EDGE_DETECTION_EVENT_1_MEM_TILE)
-        && (event != XAIE_EVENT_EDGE_DETECTION_EVENT_0_MEM)
-        && (event != XAIE_EVENT_EDGE_DETECTION_EVENT_1_MEM))
-      return;
-
-    // Catch memory tiles
-    if (type == module_type::mem_tile) {
-      // Event is DMA_S2MM_Sel0_stream_starvation or DMA_MM2S_Sel0_stalled_lock
-      uint16_t eventNum = isInputSet(type, metricSet)
-          ? EVENT_MEM_TILE_DMA_S2MM_SEL0_STREAM_STARVATION
-          : EVENT_MEM_TILE_DMA_MM2S_SEL0_STALLED_LOCK;
-
-      // Register Edge_Detection_event_control
-      // 26    Event 1 triggered on falling edge
-      // 25    Event 1 triggered on rising edge
-      // 23:16 Input event for edge event 1
-      // 10    Event 0 triggered on falling edge
-      //  9    Event 0 triggered on rising edge
-      //  7:0  Input event for edge event 0
-      uint32_t edgeEventsValue = (1 << 26) + (eventNum << 16) + (1 << 9) + eventNum;
-
-      xrt_core::message::send(severity_level::debug, "XRT",
-          "Configuring memory tile edge events to detect rise and fall of event " 
-          + std::to_string(eventNum));
-
-      auto tileOffset = _XAie_GetTileAddr(&aieDevInst, tile.row, tile.col);
-      XAie_Write32(&aieDevInst, tileOffset + AIE_OFFSET_EDGE_CONTROL_MEM_TILE, 
-                   edgeEventsValue);
-      return;
-    }
-
-    // Below is AIE tile support
-    
-    // Event is DMA_MM2S_stalled_lock or DMA_S2MM_stream_starvation
-    // Event is DMA_S2MM_Sel0_stream_starvation or DMA_MM2S_Sel0_stalled_lock
-    uint16_t eventNum = isInputSet(type, metricSet)
-        ? ((channel == 0) ? EVENT_MEM_DMA_MM2S_0_STALLED_LOCK
-                          : EVENT_MEM_DMA_MM2S_1_STALLED_LOCK)
-        : ((channel == 0) ? EVENT_MEM_DMA_S2MM_0_STREAM_STARVATION
-                          : EVENT_MEM_DMA_S2MM_1_STREAM_STARVATION);
-
-    // Register Edge_Detection_event_control
-    // 26    Event 1 triggered on falling edge
-    // 25    Event 1 triggered on rising edge
-    // 23:16 Input event for edge event 1
-    // 10    Event 0 triggered on falling edge
-    //  9    Event 0 triggered on rising edge
-    //  7:0  Input event for edge event 0
-    uint32_t edgeEventsValue = (1 << 26) + (eventNum << 16) + (1 << 9) + eventNum;
-
-    xrt_core::message::send(severity_level::debug, "XRT", 
-        "Configuring AIE tile edge events to detect rise and fall of event " 
-        + std::to_string(eventNum));
-
-    auto tileOffset = _XAie_GetTileAddr(&aieDevInst, tile.row, tile.col);
-    XAie_Write32(&aieDevInst, tileOffset + AIE_OFFSET_EDGE_CONTROL_MEM, 
-                 edgeEventsValue);
-  }
-
-  /****************************************************************************
    * Configure requested tiles with trace metrics and settings
    ***************************************************************************/
   bool AieTrace_WinImpl::setMetricsSettings(uint64_t deviceId, void* hwCtxImpl)
@@ -926,9 +428,10 @@ namespace xdp {
     (void)deviceId;
 
     // Get partition columns
+    // NOTE: Assuming only one HW context is alive at a time
     boost::property_tree::ptree aiePartitionPt = xdp::aie::getAIEPartitionInfoClient(hwCtxImpl);
-    // Currently, assuming only one Hw Context is alive at a time
     uint8_t startCol = static_cast<uint8_t>(aiePartitionPt.front().second.get<uint64_t>("start_col"));
+    uint8_t numCols  = static_cast<uint8_t>(aiePartitionPt.front().second.get<uint64_t>("num_cols"));
 
     std::string startType = xrt_core::config::get_aie_trace_settings_start_type();
     unsigned int startLayer = xrt_core::config::get_aie_trace_settings_start_layer();
@@ -968,13 +471,14 @@ namespace xdp {
       auto col        = tile.col;
       auto row        = tile.row;
       auto subtype    = tile.subtype;
-      auto type       = getTileType(row);
+      auto type       = aie::getModuleType(row, metadata->getRowOffset());
       auto typeInt    = static_cast<int>(type);
       //auto& xaieTile  = aieDevice->tile(col, row);
       auto loc        = XAie_TileLoc(col, row);
 
       std::stringstream cmsg;
-      cmsg << "Configuring tile (" << +col << "," << +row << ") in module type: " << aie::getModuleName(type) << ".";
+      cmsg << "Configuring tile (" << +col << "," << +row << ") in module type: " 
+           << aie::getModuleName(type) << ".";
       xrt_core::message::send(severity_level::info, "XRT", cmsg.str());
 
       // xaiefal::XAieMod core;
@@ -1039,7 +543,7 @@ namespace xdp {
         interfaceEvents = interfaceTileEventSets[metricSet];
       }
 
-      if (xrt_core::config::get_verbosity() >= static_cast<uint32_t>(severity_level::info)) {
+      if (aie::isInfoVerbosity()) {
         std::stringstream infoMsg;
         auto tileName = (type == module_type::mem_tile) ? "memory" 
             : ((type == module_type::shim) ? "interface" : "AIE");
@@ -1081,7 +585,7 @@ namespace xdp {
 
         // Configure combo & group events (e.g., to monitor DMA channels)
         auto comboEvents = configComboEvents(loc, mod, type, metricSet, cfgTile->core_trace_config);
-        configGroupEvents(loc, mod, type, metricSet);
+        aie::trace::configGroupEvents(&aieDevInst, loc, mod, type, metricSet);
 
         // Set overall start/end for trace capture
         // NOTE: This needs to be done first.
@@ -1248,13 +752,13 @@ namespace xdp {
 
         // Specify Sel0/Sel1 for memory tile events 21-44
         if (type == module_type::mem_tile) {
-          configEventSelections(loc, type, metricSet, channel0, channel1, 
-                                cfgTile->memory_tile_trace_config);
+          aie::trace::configEventSelections(&aieDevInst, loc, type, metricSet, channel0, 
+                                            channel1, cfgTile->memory_tile_trace_config);
         }
         else {
           // Record if these are channel-specific events
           // NOTE: for now, check first event and assume single channel
-          auto channelNum = getChannelNumberFromEvent(memoryEvents.at(0));
+          auto channelNum = aie::trace::getChannelNumberFromEvent(memoryEvents.at(0));
           if (channelNum >= 0) {
             if (aie::isInputSet(type, metricSet))
               cfgTile->core_trace_config.mm2s_channels[0] = channelNum;
@@ -1279,7 +783,7 @@ namespace xdp {
 
         // Configure memory trace events
         for (uint8_t i = 0; i < memoryEvents.size(); i++) {
-          bool isCoreEvent = isCoreModuleEvent(memoryEvents[i]);
+          bool isCoreEvent = aie::trace::isCoreModuleEvent(memoryEvents[i]);
 
           if (isCoreEvent) {
             if (XAie_EventBroadcast(&aieDevInst, loc, XAIE_CORE_MOD, bcId, memoryEvents[i]) != XAIE_OK)
@@ -1296,7 +800,7 @@ namespace xdp {
           numMemoryTraceEvents++;
 
           // Configure edge events (as needed)
-          configEdgeEvents(tile, type, metricSet, memoryEvents[i], channel0);
+          aie::trace::configEdgeEvents(&aieDevInst, tile, type, metricSet, memoryEvents[i], channel0);
 
           // Update config file
           uint16_t phyEvent = 0;
@@ -1305,7 +809,7 @@ namespace xdp {
 
           if (isCoreEvent) {
             cfgTile->core_trace_config.internal_events_broadcast[bcId] = phyEvent;
-            cfgTile->memory_trace_config.traced_events[i] = bcIdToEvent(bcId);
+            cfgTile->memory_trace_config.traced_events[i] = aie::bcIdToEvent(bcId);
             bcId++;
           }
           else if (type == module_type::mem_tile)
@@ -1373,7 +877,7 @@ namespace xdp {
         uint8_t channel1 = (iter1 == configChannel1.end()) ? 1 : iter1->second;
 
         // Modify events as needed
-        modifyEvents(type, subtype, metricSet, channel0, interfaceEvents);
+        aie::trace::modifyEvents(type, subtype, metricSet, channel0, interfaceEvents);
         
         configStreamSwitchPorts(tileMetric.first, loc, type, metricSet, channel0, channel1, 
                                 interfaceEvents, cfgTile->interface_tile_trace_config);
@@ -1436,7 +940,7 @@ namespace xdp {
         if (XAie_TraceStopEvent(&aieDevInst, loc, mod, interfaceTileTraceEndEvent) != XAIE_OK)
           break;
         cfgTile->interface_tile_trace_config.packet_type = packetType;
-        auto channelNum = getChannelNumberFromEvent(interfaceEvents.at(0));
+        auto channelNum = aie::trace::getChannelNumberFromEvent(interfaceEvents.at(0));
         if (channelNum >= 0) {
           if (aie::isInputSet(type, metricSet))
             cfgTile->interface_tile_trace_config.mm2s_channels[channelNum] = channelNum;
@@ -1445,7 +949,7 @@ namespace xdp {
         }
       } // Interface tiles
 
-      if (xrt_core::config::get_verbosity() >= static_cast<uint32_t>(severity_level::debug)) {
+      if (aie::isDebugVerbosity()) {
         std::stringstream msg;
         msg << "Reserved ";
         if (type == module_type::core)
@@ -1465,8 +969,9 @@ namespace xdp {
       (db->getStaticInfo()).addAIECfgTile(deviceId, cfgTile);
     }  // For tiles
 
-    if(m_trace_start_broadcast) {
-      build2ChannelBroadcastNetwork(hwCtxImpl, traceStartBroadcastChId1, traceStartBroadcastChId2, interfaceTileTraceStartEvent);
+    if (m_trace_start_broadcast) {
+      aie::trace::build2ChannelBroadcastNetwork(&aieDevInst, metadata, traceStartBroadcastChId1, 
+        traceStartBroadcastChId2, interfaceTileTraceStartEvent, startCol, numCols);
       XAie_EventGenerate(&aieDevInst, XAie_TileLoc(startCol, 0), XAIE_PL_MOD,  interfaceTileTraceStartEvent);
     }
 
@@ -1484,9 +989,10 @@ namespace xdp {
     XAie_ClearTransaction(&aieDevInst);
 
     // Clearing the broadcast network used for trace start
-    if(m_trace_start_broadcast) {
+    if (m_trace_start_broadcast) {
       XAie_StartTransaction(&aieDevInst, XAIE_TRANSACTION_DISABLE_AUTO_FLUSH);
-      reset2ChannelBroadcastNetwork(hwCtxImpl, traceStartBroadcastChId1, traceStartBroadcastChId2);
+      aie::trace::reset2ChannelBroadcastNetwork(&aieDevInst, metadata, traceStartBroadcastChId1, 
+                                                traceStartBroadcastChId2, startCol, numCols);
       txn_ptr = XAie_ExportSerializedTransaction(&aieDevInst, 1, 0);
       if (!transactionHandler->initializeKernel("XDP_KERNEL"))
         return false;
