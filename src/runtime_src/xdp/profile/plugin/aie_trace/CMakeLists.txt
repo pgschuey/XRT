@@ -30,6 +30,8 @@ file(GLOB AIE_TRACE_PLUGIN_FILES
   "${OFFLOAD_DIR}/*.cpp"
   "${DEVICE_DIR}/*.h"
   "${DEVICE_DIR}/*.cpp"
+  "${PROFILE_DIR}/plugin/aie_base/*.h"
+  "${PROFILE_DIR}/plugin/aie_base/*.cpp"
   "${PROFILE_DIR}/plugin/aie_trace/*.h"
   "${PROFILE_DIR}/plugin/aie_trace/*.cpp"
   "${PROFILE_DIR}/writer/aie_trace/*.h"

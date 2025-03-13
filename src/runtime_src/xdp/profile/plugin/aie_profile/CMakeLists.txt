@@ -18,6 +18,8 @@ elseif (DEFINED XRT_AIE_BUILD AND ${XRT_NATIVE_BUILD} STREQUAL "no")
 endif()
 
 file(GLOB AIE_PROFILE_PLUGIN_FILES
+  "${PROFILE_DIR}/plugin/aie_base/*.h"
+  "${PROFILE_DIR}/plugin/aie_base/*.cpp"
   "${PROFILE_DIR}/plugin/aie_profile/*.h"
   "${PROFILE_DIR}/plugin/aie_profile/*.cpp"
   "${PROFILE_DIR}/writer/aie_profile/*.h"
