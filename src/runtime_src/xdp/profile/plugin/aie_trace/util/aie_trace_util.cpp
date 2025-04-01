@@ -67,10 +67,7 @@ namespace xdp::aie::trace {
       eventSets["s2mm_channels_stalls"]   = eventSets["functions"];
       eventSets["mm2s_channels_stalls"]   = eventSets["functions"];
     }
-<<<<<<< HEAD
-=======
-
->>>>>>> 33a190a76e2f1003f18e921f76656bc51747870f
+    
     return eventSets;
   }
 
