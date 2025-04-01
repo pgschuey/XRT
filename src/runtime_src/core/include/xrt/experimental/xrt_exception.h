@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2022-2025 Advanced Micro Devices, Inc. All rights reserved.
 #ifndef XRT_EXCEPTION_H_
 #define XRT_EXCEPTION_H_
 
 #ifdef __cplusplus
 # include <exception>
-# include <string>
 #endif
 
 #ifdef __cplusplus
@@ -23,16 +22,12 @@ namespace xrt {
  * xrt::exception, which in turn is derived from a std::exception.
  */
 class exception : public std::exception
-{
-public:
-  exception()
-  {}
-};
+{};
 
 } // namespace xrt
 
 #else
-# error xrt_exception is only implemented for C++
+# pragma message("Warning: xrt_exception is only implemented for C++")
 #endif // __cplusplus
 
 #endif

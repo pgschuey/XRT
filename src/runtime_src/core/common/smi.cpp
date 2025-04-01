@@ -43,13 +43,24 @@ to_ptree() const
 }
 
 smi_base::
-smi_base()
-{
-
-  examine_report_desc = {
+smi_base() : 
+  examine_report_desc {
     {"host", "Host information", "common"}
-  };
-}
+  },
+  configure_suboptions_desc {
+    {"device", "d", "The Bus:Device.Function (e.g., 0000:d8:00.0) device of interest", "common", "", "string"},
+    {"help", "h", "Help to use this sub-command", "common", "", "none"}
+  }
+{}
+
+smi_base::
+smi_base(tuple_vector validate_test_desc, 
+         tuple_vector examine_report_desc, 
+         std::vector<option> configure_suboptions_desc) : 
+  validate_test_desc(std::move(validate_test_desc)),
+  examine_report_desc(std::move(examine_report_desc)),
+  configure_suboptions_desc(std::move(configure_suboptions_desc))
+{}
 
 std::vector<basic_option> 
 smi_base::
@@ -81,7 +92,8 @@ construct_validate_subcommand() const
     {"run", "r", "Run a subset of the test suite. Valid options are:\n",  "common", "",  "array", construct_option_description(validate_test_desc)},
     {"path", "p", "Path to the directory containing validate xclbins", "hidden", "", "string"},
     {"param", "", "Extended parameter for a given test. Format: <test-name>:<key>:<value>", "hidden", "", "string"},
-    {"pmode", "", "Specify which power mode to run the benchmarks in. Note: Some tests might be unavailable for some modes", "hidden", "", "string"}
+    {"pmode", "", "Specify which power mode to run the benchmarks in. Note: Some tests might be unavailable for some modes", "hidden", "", "string"}, 
+    {"elf", "", "Run the test in ELF mode", "hidden", "", "none"}
   };
 
   ptree options_ptree;
@@ -131,22 +143,8 @@ construct_configure_subcommand() const
   subcommand.put("type", "common");
   subcommand.put("description", "Device and host configuration");
 
-  std::vector<option> options = {
-    {"device", "d", "The Bus:Device.Function (e.g., 0000:d8:00.0) device of interest", "common", "", "string"},
-    {"help", "h", "Help to use this sub-command", "common", "", "none"},
-    {"daemon", "", "Update the device daemon configuration", "hidden", "", "none"},
-    {"purge", "", "Remove the daemon configuration file", "hidden", "", "string"},
-    {"host", "", "IP or hostname for device peer", "hidden", "", "string"},
-    {"security", "", "Update the security level for the device", "hidden", "", "string"},
-    {"clk_throttle", "", "Enable/disable the device clock throttling", "hidden", "", "string"},
-    {"ct_threshold_power_override", "", "Update the power threshold in watts", "hidden", "", "string"},
-    {"ct_threshold_temp_override", "", "Update the temperature threshold in celsius", "hidden", "", "string"},
-    {"ct_reset", "", "Reset all throttling options", "hidden", "", "string"},
-    {"showx", "", "Display the device configuration settings", "hidden", "", "string"}
-  };
-
   ptree options_ptree;
-  for (const auto& option : options) {
+  for (const auto& option : configure_suboptions_desc) {
     options_ptree.push_back(std::make_pair("", option.to_ptree()));
   }
 
@@ -156,7 +154,7 @@ construct_configure_subcommand() const
 
 std::string 
 smi_base::
-get_smi_config() const 
+build_smi_config() const 
 {
   ptree config;
   ptree subcommands;
@@ -177,6 +175,6 @@ get_smi_config()
 {
   xrt_core::smi::smi_base instance;
 
-  return instance.get_smi_config();
+  return instance.build_smi_config();
 }
 } // namespace xrt_core::smi

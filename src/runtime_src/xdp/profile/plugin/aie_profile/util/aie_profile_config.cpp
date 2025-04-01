@@ -156,6 +156,14 @@ namespace xdp::aie::profile {
       }
     }
 
+    if ((type == module_type::shim) && (tile.subtype == io_type::PLIO) &&
+        (switchPortMap.size() < tile.stream_ids.size())) {
+      std::string msg = "Interface tile " + std::to_string(tile.col) + " has more "
+                      + "PLIO than can be monitored by metric set " + metricSet + ". Please "
+                      + "run again with different profile settings or choose a different set.";
+      xrt_core::message::send(severity_level::warning, "XRT", msg);
+    }
+
     switchPortMap.clear();
   }
 
@@ -171,7 +179,8 @@ namespace xdp::aie::profile {
                            XAie_Events resetEvent, int pcIndex, size_t counterIndex, 
                            size_t threshold, XAie_Events& retCounterEvent, const tile_type& tile,
                            std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency,
-                           std::map<adfAPI, std::map<std::string, adfAPIResourceInfo>>& adfAPIResourceInfoMap)
+                           std::map<adfAPI, std::map<std::string, adfAPIResourceInfo>>& adfAPIResourceInfoMap,
+                           std::map<std::string, std::pair<int, XAie_Events>>& adfAPIBroadcastEventsMap)
   {
     if (xdpModType != module_type::shim)
       return nullptr;
@@ -180,9 +189,10 @@ namespace xdp::aie::profile {
       bool isSourceTile = true;
       auto pc = configInterfaceLatency(aieDevInst, aieDevice, metadata, xaieModule, xaieModType, xdpModType, 
                                        metricSet, startEvent, endEvent, resetEvent, pcIndex, threshold, 
-                                       retCounterEvent, tile, isSourceTile, bcResourcesLatency);
-      std::string srcDestPairKey = metadata->getSrcDestPairKey(tile.col, tile.row);
+                                       retCounterEvent, tile, isSourceTile, bcResourcesLatency, adfAPIBroadcastEventsMap);
+      std::string srcDestPairKey = metadata->getSrcDestPairKey(tile.col, tile.row, (tile.stream_ids.empty() ? 0 : tile.stream_ids[0]));
       if (isSourceTile) {
+        std::string srcDestPairKey = metadata->getSrcDestPairKey(tile.col, tile.row, (tile.stream_ids.empty() ? 0 : tile.stream_ids[0]));
         adfAPIResourceInfoMap[aie::profile::adfAPI::INTF_TILE_LATENCY][srcDestPairKey].isSourceTile = true; 
         adfAPIResourceInfoMap[aie::profile::adfAPI::INTF_TILE_LATENCY][srcDestPairKey].srcPcIdx = counterIndex;
       }
@@ -336,15 +346,18 @@ namespace xdp::aie::profile {
    * NOTE: This function applies to interface tiles only
    ***************************************************************************/
   std::pair<int, XAie_Events>
-  getPLBroadcastChannel(xaiefal::XAieDev* aieDevice, const tile_type& srcTile, 
+  getShimBroadcastChannel(xaiefal::XAieDev* aieDevice, const tile_type& srcTile, const tile_type& destTile,
                         std::shared_ptr<AieProfileMetadata> metadata,
                         std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency)
   {
     std::pair<int, XAie_Events> rc(-1, XAIE_EVENT_NONE_PL);
     AieRC RC = AieRC::XAIE_OK;
-    tile_type destTile;
     
-    metadata->getDestTile(srcTile, destTile);
+    // Check if source and destination tiles are at same location
+    if (srcTile.col == destTile.col && srcTile.row == destTile.row) {
+      return std::make_pair(0, XAIE_EVENT_USER_EVENT_0_PL);
+    }
+
     XAie_LocType destTileLocation = XAie_TileLoc(destTile.col, destTile.row);
 
     // Include all tiles between source and destination
@@ -386,25 +399,42 @@ namespace xdp::aie::profile {
   std::pair<int, XAie_Events>
   setupBroadcastChannel(xaiefal::XAieDev* aieDevice, const tile_type& currTileLoc, 
                         std::shared_ptr<AieProfileMetadata> metadata,
-                        std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency)
+                        std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency,
+                        std::map<std::string, std::pair<int, XAie_Events>>& adfAPIBroadcastEventsMap)
   {
-    // This stores the map of location of tile and configured broadcast channel event
-    static std::map<tile_type, std::pair<int, XAie_Events>> adfAPIBroadcastEventsMap;
-
-    tile_type srcTile = currTileLoc;
-    if (!metadata->isSourceTile(currTileLoc))
-      if (!metadata->getSourceTile(currTileLoc, srcTile))
-        return {-1, XAIE_EVENT_NONE_CORE};
+    tile_type srcTile, destTile;
     
-    if (adfAPIBroadcastEventsMap.find(srcTile) == adfAPIBroadcastEventsMap.end()) {
-      // auto bcPair = aie::profile::getPreferredPLBroadcastChannel();
-      auto bcPair = getPLBroadcastChannel(aieDevice, srcTile, metadata, bcResourcesLatency);
+    metadata->getSrcTile(currTileLoc, srcTile);
+    metadata->getDestTile(currTileLoc, destTile);
+    std::string srcDestTileKey = metadata->getSrcDestPairKey(srcTile.col, srcTile.row, (srcTile.stream_ids.empty() ? 0 : srcTile.stream_ids[0]));
+    
+    if (adfAPIBroadcastEventsMap.find(srcDestTileKey) == adfAPIBroadcastEventsMap.end()) {
+      auto bcPair = getShimBroadcastChannel(aieDevice, srcTile, destTile, metadata, bcResourcesLatency);
       if (bcPair.first == -1 || bcPair.second == XAIE_EVENT_NONE_CORE) {
         return {-1, XAIE_EVENT_NONE_CORE};
       }
-      adfAPIBroadcastEventsMap[srcTile] = bcPair;
+      adfAPIBroadcastEventsMap[srcDestTileKey] = bcPair;
     }
-    return adfAPIBroadcastEventsMap.at(srcTile);
+    return adfAPIBroadcastEventsMap.at(srcDestTileKey);
+  }
+
+  /****************************************************************************
+  * Get configured broadcast channels for destination tiles
+  * NOTE: This function is queried by the source tile.
+  ***************************************************************************/
+  std::pair<int, XAie_Events>
+  getSetBroadcastChannel(xaiefal::XAieDev* aieDevice, const tile_type& currTileLoc, 
+                        std::shared_ptr<AieProfileMetadata> metadata,
+                        std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency,
+                        std::map<std::string, std::pair<int, XAie_Events>>& adfAPIBroadcastEventsMap)
+  {
+    tile_type srcTile = currTileLoc;
+    std::string srcDestTileKey = metadata->getSrcDestPairKey(srcTile.col, srcTile.row, (srcTile.stream_ids.empty() ? 0 : srcTile.stream_ids[0]));
+    
+    if (adfAPIBroadcastEventsMap.find(srcDestTileKey) == adfAPIBroadcastEventsMap.end()) {
+      return {-1, XAIE_EVENT_NONE_CORE};
+    }
+    return adfAPIBroadcastEventsMap.at(srcDestTileKey);
   }
 
   /****************************************************************************
@@ -418,7 +448,8 @@ namespace xdp::aie::profile {
                          XAie_Events startEvent, XAie_Events endEvent, XAie_Events resetEvent, 
                          int pcIndex, size_t threshold, XAie_Events& retCounterEvent,
                          const tile_type& tile, bool& isSource,
-                         std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency)
+                         std::vector<std::shared_ptr<xaiefal::XAieBroadcast>>& bcResourcesLatency,
+                         std::map<std::string, std::pair<int, XAie_Events>>& adfAPIBroadcastEventsMap)
   {
    // Request combo event from xaie module
     auto pc = xaieModule.perfCounter();
@@ -428,7 +459,7 @@ namespace xdp::aie::profile {
     
     startEvent = XAIE_EVENT_USER_EVENT_0_PL;
     if (!metadata->isSourceTile(tile)) {
-      auto bcPair = setupBroadcastChannel(aieDevice, tile, metadata, bcResourcesLatency);
+      auto bcPair = setupBroadcastChannel(aieDevice, tile, metadata, bcResourcesLatency, adfAPIBroadcastEventsMap);
       startEvent = bcPair.second;
       isSource = false;
     }
@@ -452,7 +483,8 @@ namespace xdp::aie::profile {
     // uint8_t broadcastId  = 10;
 
     if (isSource) {
-      auto bc_pair = setupBroadcastChannel(aieDevice, tile, metadata, bcResourcesLatency);
+      // Fetch the configured broadcast channel for destination tile.
+      auto bc_pair = getSetBroadcastChannel(aieDevice, tile, metadata, bcResourcesLatency, adfAPIBroadcastEventsMap);
       if (bc_pair.first == -1)
         return nullptr;
 
