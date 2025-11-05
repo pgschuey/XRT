@@ -22,6 +22,8 @@ const unsigned int cm_performance_counter8 = 0;
 const unsigned int cm_performance_counter9 = 0;
 const unsigned int cm_performance_counter10 = 0;
 const unsigned int cm_performance_counter11 = 0;
+// Debug Halt Event Control
+const unsigned int cm_debug_control1 = 0;
 // Memory Tile Counters
 const unsigned int mem_performance_counter0 = 0;
 const unsigned int mem_performance_counter1 = 0;

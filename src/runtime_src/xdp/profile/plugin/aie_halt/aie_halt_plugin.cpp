@@ -29,9 +29,11 @@
 #include "xdp/profile/device/utility.h"
 #include "xdp/profile/plugin/vp_base/utility.h"
 
-#ifdef XDP_CLIENT_BUILD
+#ifdef XDP_NPU3_BUILD
+#include "xdp/profile/plugin/aie_halt/clientDev/aie_halt_npu3.h"
+#elif XDP_CLIENT_BUILD
 #include "xdp/profile/plugin/aie_halt/clientDev/aie_halt.h"
-#elif defined (XDP_VE2_BUILD)
+#elif XDP_VE2_BUILD
 #include "xdp/profile/plugin/aie_halt/ve2/aie_halt.h"
 #include "xdp/profile/device/xdp_base_device.h"
 #endif
@@ -86,11 +88,15 @@ namespace xdp {
     (db->getStaticInfo()).setDeviceName(deviceId, "win_device");
 
     DeviceDataEntry.valid = true;
+    #ifdef XDP_NPU3_BUILD
+    DeviceDataEntry.implementation = std::make_unique<AIEHaltNPU3Impl>(db);
+    #else
     DeviceDataEntry.implementation = std::make_unique<AIEHaltClientDevImpl>(db);
+    #endif
     DeviceDataEntry.implementation->setHwContext(hwContext);
     DeviceDataEntry.implementation->updateDevice(mHwCtxImpl);
 
-#elif defined (XDP_VE2_BUILD)
+#elif XDP_VE2_BUILD
     if (mHwCtxImpl) {
       // For VE2 device flow, only 1 device and xclbin is supported now.
       return;
