@@ -117,12 +117,22 @@ namespace xdp::aie::profile {
     }
     else if (aie::isAIE2ps(hwGen)) {
 #ifndef XDP_CLIENT_BUILD
-      eventSets["input_stalls"]   = {XAIE_EVENT_NOC0_DMA_MM2S_0_STREAM_BACKPRESSURE_PL, 
-                                     XAIE_EVENT_NOC0_DMA_MM2S_0_MEMORY_STARVATION_PL};
-      eventSets["output_stalls"]  = {XAIE_EVENT_NOC0_DMA_S2MM_0_MEMORY_BACKPRESSURE_PL, 
-                                     XAIE_EVENT_NOC0_DMA_S2MM_0_STALLED_LOCK_PL};
-      eventSets["input_throughputs"] = {XAIE_EVENT_NOC0_GROUP_DMA_ACTIVITY_PL, XAIE_EVENT_PORT_RUNNING_0_PL};
-      eventSets["output_throughputs"] = {XAIE_EVENT_NOC0_GROUP_DMA_ACTIVITY_PL, XAIE_EVENT_PORT_RUNNING_0_PL};
+      eventSets["input_stalls"]       = {XAIE_EVENT_NOC0_DMA_MM2S_0_STREAM_BACKPRESSURE_PL,
+                                         XAIE_EVENT_NOC0_DMA_MM2S_0_MEMORY_STARVATION_PL,
+                                         XAIE_EVENT_NOC0_DMA_MM2S_0_STALLED_LOCK_PL,
+                                         XAIE_EVENT_NOC0_DMA_MM2S_1_STREAM_BACKPRESSURE_PL,
+                                         XAIE_EVENT_NOC0_DMA_MM2S_1_MEMORY_STARVATION_PL,
+                                         XAIE_EVENT_NOC0_DMA_MM2S_1_STALLED_LOCK_PL};
+      eventSets["output_stalls"]      = {XAIE_EVENT_NOC0_DMA_S2MM_0_MEMORY_BACKPRESSURE_PL,
+                                         XAIE_EVENT_NOC0_DMA_S2MM_0_STALLED_LOCK_PL,
+                                         XAIE_EVENT_NOC0_DMA_S2MM_0_STREAM_STARVATION_PL,
+                                         XAIE_EVENT_NOC0_DMA_S2MM_1_MEMORY_BACKPRESSURE_PL,
+                                         XAIE_EVENT_NOC0_DMA_S2MM_1_STALLED_LOCK_PL,
+                                         XAIE_EVENT_NOC0_DMA_S2MM_1_STREAM_STARVATION_PL};
+      eventSets["input_throughputs"]  = {XAIE_EVENT_PORT_STALLED_0_PL, XAIE_EVENT_PORT_RUNNING_0_PL,
+                                         XAIE_EVENT_PORT_STALLED_1_PL, XAIE_EVENT_PORT_RUNNING_1_PL};
+      eventSets["output_throughputs"] = {XAIE_EVENT_PORT_STALLED_0_PL, XAIE_EVENT_PORT_RUNNING_0_PL,
+                                         XAIE_EVENT_PORT_STALLED_1_PL, XAIE_EVENT_PORT_RUNNING_1_PL};
 #endif
     }
     else {
