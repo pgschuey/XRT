@@ -1833,6 +1833,23 @@ public:
     m_usage_logger->log_kernel_info(device->core_device.get(), hwctx, name, args.size());
   }
 
+  // Minimal constructor for full-ELF-flow hw context with an explicit
+  // non-full-ELF module (e.g. XDP control code ELFs from aiebu_assembler).
+  // Bypasses xclbin metadata lookups and kernel name resolution since
+  // control code ELFs don't carry those sections.
+  kernel_impl(std::shared_ptr<device_type> dev, xrt::hw_context ctx,
+              xrt::module mod, const std::string& nm, bool /*elf_flow_with_module*/)
+    : name(nm.substr(0, nm.find(":")))
+    , device(std::move(dev))
+    , hwctx(std::move(ctx))
+    , hwqueue(hwctx)
+    , m_module(std::move(mod))
+    , uid(create_uid())
+  {
+    properties.type = kernel_type::dpu;
+    XRT_DEBUGF("kernel_impl::kernel_impl(%d)\n", uid);
+  }
+
   std::shared_ptr<kernel_impl>
   get_shared_ptr()
   {
@@ -3978,6 +3995,8 @@ alloc_kernel_from_module(const std::shared_ptr<device_type>& dev,
                          const xrt::module& module,
                          const std::string& name)
 {
+  if (xrt_core::hw_context_int::get_elf_flow(hwctx))
+    return std::make_shared<xrt::kernel_impl>(dev, hwctx, module, name, true);
   return std::make_shared<xrt::kernel_impl>(dev, hwctx, module, name);
 }
 
