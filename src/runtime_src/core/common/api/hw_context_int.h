@@ -7,7 +7,6 @@
 
 // This file defines implementation extensions to the XRT XCLBIN APIs.
 #include "core/include/xrt/xrt_hw_context.h"
-#include "core/include/xrt/experimental/xrt_elf.h"
 #include "core/include/xrt/experimental/xrt_module.h"
 
 #include <cstdint>
