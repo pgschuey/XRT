@@ -470,13 +470,6 @@ public:
     throw std::runtime_error("no ELF found with given kernel name in ctx");
   }
 
-  void
-  register_elf(const std::string& kname, const xrt::elf& elf)
-  {
-    std::lock_guard lk(m_mutex);
-    m_elf_map[kname] = elf;
-  }
-
   bool
   get_elf_flow() const
   {
@@ -707,12 +700,6 @@ xrt::hw_context::cfg_type
 get_cfg_map(const xrt::hw_context& hwctx)
 {
   return hwctx.get_handle()->get_cfg_map();
-}
-
-void
-register_elf(xrt::hw_context& hwctx, const std::string& kname, const xrt::elf& elf)
-{
-  hwctx.get_handle()->register_elf(kname, elf);
 }
 
 } // xrt_core::hw_context_int

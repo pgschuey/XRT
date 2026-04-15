@@ -108,14 +108,6 @@ XRT_CORE_COMMON_EXPORT
 xrt::hw_context::cfg_type
 get_cfg_map(const xrt::hw_context& hwctx);
 
-// Register an ELF with the hardware context under a specific kernel
-// name.  Used by XDP plugins to inject dynamically generated control
-// code ELFs (e.g., AIE Halt) into a full-ELF-flow hardware context
-// so they can be submitted via xrt::ext::kernel(ctx, name).
-XRT_CORE_COMMON_EXPORT
-void
-register_elf(xrt::hw_context& hwctx, const std::string& kname, const xrt::elf& elf);
-
 }} // hw_context_int, xrt_core
 
 #endif
